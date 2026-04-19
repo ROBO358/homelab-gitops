@@ -1,0 +1,14 @@
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: default
+spec:
+  # Worker ノードからのみ広告（MetalLB の L2Advertisement と同一のノード選択）
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+  interfaces:
+    - enp1s0
+  externalIPs: false
+  loadBalancerIPs: true
