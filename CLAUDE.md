@@ -75,11 +75,13 @@ infrastructure/
 
 ```bash
 task                        # タスク一覧
-task flux:install           # Flux を実機クラスタに導入（rebuild 後の初回のみ）
+task flux:bootstrap         # Flux を GitHub bootstrap（rebuild 後の初回のみ）
 task flux:status            # GitRepository / Kustomization / HelmRelease の状態確認
 task flux:reconcile         # push 直後に手動で sync を強制
 task flux:logs              # Flux エラーログを tail
 task flux:uninstall         # Flux を削除（緊急時のみ）
+task cilium:restart         # Cilium DaemonSet のみ rolling restart（ConfigMap 変更後）
+task cilium:restart-all     # Cilium DaemonSet + Operator を rolling restart（L2 等全機能変更後）
 task verify:cluster         # nodes + cilium / coredns pods
 task verify:cilium          # Cilium adoption annotation / status / feature flags
 task verify:encryption      # WireGuard 暗号化ステータス

@@ -81,6 +81,15 @@ tasks:
       - kubectl -n {{.CILIUM_NS}} rollout restart ds/cilium
       - kubectl -n {{.CILIUM_NS}} rollout status ds/cilium --timeout=5m
 
+  cilium:restart-all:
+    desc: "Restart Cilium DaemonSet + Operator (needed after ConfigMap-only Helm upgrades affecting both)"
+    deps: [ctx:check]
+    prompt: "This rolling-restarts all Cilium pods and the operator. Continue?"
+    cmds:
+      - kubectl -n {{.CILIUM_NS}} rollout restart ds/cilium deploy/cilium-operator
+      - kubectl -n {{.CILIUM_NS}} rollout status ds/cilium --timeout=5m
+      - kubectl -n {{.CILIUM_NS}} rollout status deploy/cilium-operator --timeout=2m
+
   # ────────────────────────────────
   # verify: cluster / cilium state
   # ────────────────────────────────
