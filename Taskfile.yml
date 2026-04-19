@@ -1,0 +1,146 @@
+version: '3'
+
+vars:
+  EXPECTED_CONTEXT: admin@yh-cluster
+  FLUX_NS: flux-system
+  CILIUM_NS: kube-system
+  # Keep in sync with yh-talos Taskfile.yml CILIUM_VERSION
+  CILIUM_VERSION: "1.19.2"
+
+tasks:
+  default:
+    silent: true
+    cmds:
+      - task --list
+
+  ctx:check:
+    desc: "Verify kube context is admin@yh-cluster"
+    silent: true
+    cmds:
+      - |
+        current=$(kubectl config current-context)
+        if [ "$current" != "{{.EXPECTED_CONTEXT}}" ]; then
+          echo "ERROR: current context='$current', expected='{{.EXPECTED_CONTEXT}}'" >&2
+          exit 1
+        fi
+
+  # ────────────────────────────────
+  # flux: Flux lifecycle
+  # ────────────────────────────────
+
+  flux:bootstrap:
+    desc: "Bootstrap Flux via GitHub (creates deploy key, run after cluster rebuild)"
+    deps: [ctx:check]
+    prompt: "This runs flux bootstrap github and commits to main. Continue?"
+    cmds:
+      - |
+        GITHUB_TOKEN=$(gh auth token) flux bootstrap github \
+          --owner=ROBO358 \
+          --repository=homelab-gitops \
+          --branch=main \
+          --path=clusters/yh-cluster \
+          --personal
+
+  flux:status:
+    desc: "Show Flux sources / kustomizations / helmreleases status"
+    deps: [ctx:check]
+    cmds:
+      - flux get sources git -A
+      - flux get kustomizations -A
+      - flux get helmreleases -A || true
+
+  flux:reconcile:
+    desc: "Force Flux to pull latest main and reconcile"
+    deps: [ctx:check]
+    cmds:
+      - flux reconcile source git flux-system
+      - flux reconcile kustomization flux-system
+
+  flux:logs:
+    desc: "Tail Flux controllers error logs"
+    deps: [ctx:check]
+    cmds:
+      - flux logs --all-namespaces --follow --level=error
+
+  flux:uninstall:
+    desc: "Remove Flux from the cluster (emergency use)"
+    deps: [ctx:check]
+    prompt: "This deletes flux-system namespace and all Flux resources. Continue?"
+    cmds:
+      - flux uninstall --namespace {{.FLUX_NS}} --silent
+
+  # ────────────────────────────────
+  # verify: cluster / cilium state
+  # ────────────────────────────────
+
+  verify:cluster:
+    desc: "Show nodes and key system pods"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get nodes -o wide
+      - kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=cilium
+      - kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=kube-dns
+
+  verify:cilium:
+    desc: "Cilium adoption annotation / status / feature flags"
+    deps: [ctx:check]
+    cmds:
+      - |
+        pod=$(kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=cilium -o name | head -1)
+        echo "== adoption annotation =="
+        kubectl -n {{.CILIUM_NS}} get ds cilium \
+          -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}{"\n"}'
+        echo "== cilium status =="
+        kubectl -n {{.CILIUM_NS}} exec "$pod" -c cilium-agent -- cilium status --brief
+        echo "== feature flags =="
+        kubectl -n {{.CILIUM_NS}} exec "$pod" -c cilium-agent -- cilium config view \
+          | grep -E 'enable-l2-announcements|enable-wireguard|enable-envoy-config|kube-proxy-replacement'
+
+  verify:encryption:
+    desc: "WireGuard encryption status"
+    deps: [ctx:check]
+    cmds:
+      - |
+        pod=$(kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=cilium -o name | head -1)
+        kubectl -n {{.CILIUM_NS}} exec "$pod" -c cilium-agent -- cilium encrypt status
+
+  verify:hubble:
+    desc: "Hubble Relay and UI pod status"
+    deps: [ctx:check]
+    cmds:
+      - kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=hubble-relay
+      - kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=hubble-ui
+
+  verify:l2:
+    desc: "Cilium L2 IP pool and announcement policy"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get ciliumloadbalancerippool
+      - kubectl get ciliuml2announcementpolicy
+
+  # ────────────────────────────────
+  # test: end-to-end smoke tests
+  # ────────────────────────────────
+
+  test:lb:
+    desc: "Deploy temporary nginx LoadBalancer service, verify EXTERNAL-IP, then clean up"
+    deps: [ctx:check]
+    cmds:
+      - kubectl create deployment nginx-lbtest --image=nginx
+      - kubectl expose deployment nginx-lbtest --port=80 --type=LoadBalancer
+      - |
+        echo "Waiting for EXTERNAL-IP (up to 60s)..."
+        for i in $(seq 1 30); do
+          ip=$(kubectl get svc nginx-lbtest \
+               -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+          if [ -n "$ip" ]; then
+            echo "EXTERNAL-IP: $ip"
+            curl -sI "http://$ip" | head -2
+            break
+          fi
+          sleep 2
+        done
+        if [ -z "$ip" ]; then
+          echo "Timed out waiting for EXTERNAL-IP" >&2
+        fi
+      - defer: kubectl delete deployment,svc nginx-lbtest --ignore-not-found
