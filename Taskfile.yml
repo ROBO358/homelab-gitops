@@ -70,6 +70,18 @@ tasks:
       - flux uninstall --namespace {{.FLUX_NS}} --silent
 
   # ────────────────────────────────
+  # cilium: cilium operations
+  # ────────────────────────────────
+
+  cilium:restart:
+    desc: "Rolling restart Cilium DaemonSet (needed after ConfigMap-only Helm upgrades)"
+    deps: [ctx:check]
+    prompt: "This rolling-restarts all Cilium pods (brief per-node connectivity blip). Continue?"
+    cmds:
+      - kubectl -n {{.CILIUM_NS}} rollout restart ds/cilium
+      - kubectl -n {{.CILIUM_NS}} rollout status ds/cilium --timeout=5m
+
+  # ────────────────────────────────
   # verify: cluster / cilium state
   # ────────────────────────────────
 

@@ -81,3 +81,9 @@ spec:
     # Disable standalone envoy DaemonSet (not needed without L7 policy)
     envoy:
       enabled: false
+
+    hubble:
+      relay:
+        enabled: true
+      ui:
+        enabled: true
