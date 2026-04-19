@@ -133,11 +133,23 @@ tasks:
       - kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=hubble-ui
 
   verify:l2:
-    desc: "Cilium L2 IP pool and announcement policy"
+    desc: "Cilium L2 IP pool, announcement policy, elected node lease, and agent state"
     deps: [ctx:check]
     cmds:
       - kubectl get ciliumloadbalancerippool
       - kubectl get ciliuml2announcementpolicy
+      - |
+        echo "== L2 announcement leases (elected nodes per service) =="
+        kubectl get lease -n {{.CILIUM_NS}} | grep l2announce || echo "(none — no LoadBalancer services or L2 not active)"
+      - |
+        echo "== l2-announce StateDB on each worker =="
+        for pod in $(kubectl -n {{.CILIUM_NS}} get pod -l k8s-app=cilium -o name); do
+          node=$(kubectl -n {{.CILIUM_NS}} get "$pod" -o jsonpath='{.spec.nodeName}')
+          entries=$(kubectl -n {{.CILIUM_NS}} exec "$pod" -c cilium-agent -- \
+            cilium-dbg statedb dump 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('l2-announce',[]))" 2>/dev/null)
+          echo "  $node: $entries"
+        done
 
   # ────────────────────────────────
   # test: end-to-end smoke tests
@@ -163,5 +175,6 @@ tasks:
         done
         if [ -z "$ip" ]; then
           echo "Timed out waiting for EXTERNAL-IP" >&2
+          exit 1
         fi
       - defer: kubectl delete deployment,svc nginx-lbtest --ignore-not-found

@@ -30,11 +30,7 @@ infrastructure/
 
 ### Done
 - [x] Flux v2 bootstrap
-- [x] MetalLB (to be replaced by Cilium L2 Announcements)
-
-### In Progress
-- [ ] **Cilium runtime** — HelmRelease + `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`
-- [ ] Remove MetalLB after Cilium L2 Announcements is verified
+- [x] Cilium runtime — HelmRelease + WireGuard encryption + Hubble + `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`
 
 ### Next
 - [ ] Ingress Controller (ingress-nginx) — HTTP/HTTPS routing

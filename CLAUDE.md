@@ -61,6 +61,24 @@ infrastructure/
 - `dependsOn` で依存関係を明示する（例: cilium-config は cilium に依存）
 - `prune: true` がデフォルト。削除したリソースは自動で Kubernetes からも消える
 
+### Cilium HelmRelease 変更後の手動再起動
+
+Cilium 1.19 の Helm チャートは DaemonSet・Operator Deployment いずれにも **checksum アノテーションがない**。
+そのため `values` を変更した HelmRelease を push しても Pod は自動再起動されず、古い設定のまま動き続ける。
+
+**HelmRelease を変更したら必ず以下を実行すること:**
+
+| 変更内容 | 実行コマンド |
+|---|---|
+| agent のみ影響する設定（WireGuard 等） | `task cilium:restart` |
+| operator も影響する設定（L2 Announcements 等） | `task cilium:restart-all` |
+
+変更が反映されているかは agent ログで確認する（ConfigMap の値は desired state であり actual state ではない）:
+```bash
+kubectl -n kube-system logs -l k8s-app=cilium --since=1m | grep 'enable-l2-announcements\|enable-wireguard'
+kubectl -n kube-system logs -l name=cilium-operator --since=1m | grep 'enable-l2-announcements'
+```
+
 ## ネットワーク情報
 
 | 用途 | 値 |
