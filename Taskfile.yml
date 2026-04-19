@@ -92,8 +92,8 @@ tasks:
           -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}{"\n"}'
         echo "== cilium status =="
         kubectl -n {{.CILIUM_NS}} exec "$pod" -c cilium-agent -- cilium status --brief
-        echo "== feature flags =="
-        kubectl -n {{.CILIUM_NS}} exec "$pod" -c cilium-agent -- cilium config view \
+        echo "== feature flags (cilium-config) =="
+        kubectl -n {{.CILIUM_NS}} get cm cilium-config -o yaml \
           | grep -E 'enable-l2-announcements|enable-wireguard|enable-envoy-config|kube-proxy-replacement'
 
   verify:encryption:

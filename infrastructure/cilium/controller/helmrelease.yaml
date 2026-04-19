@@ -70,3 +70,14 @@ spec:
 
     ipam:
       mode: kubernetes
+
+    # WireGuard transparent encryption for pod-to-pod traffic (node-to-node overlay)
+    # nodeEncryption: false = host network traffic is not encrypted
+    encryption:
+      enabled: true
+      type: wireguard
+      nodeEncryption: false
+
+    # Disable standalone envoy DaemonSet (not needed without L7 policy)
+    envoy:
+      enabled: false
