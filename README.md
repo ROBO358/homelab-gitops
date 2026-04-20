@@ -6,7 +6,7 @@ This repository manages:
 
 - Flux v2 configuration and sync
 - **Cilium runtime management** — HelmRelease + `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`
-- Infrastructure components (LoadBalancer, Ingress, Storage, Secrets — see Roadmap)
+- Infrastructure components (LoadBalancer, Gateway API, Storage, Secrets — see Roadmap)
 - Application workloads
 
 Talos machine configuration, cluster lifecycle, and **CNI (Cilium) bootstrap manifest** are managed in [yh-talos](https://github.com/ROBO358/yh-talos).

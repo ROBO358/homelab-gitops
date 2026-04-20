@@ -79,6 +79,14 @@ kubectl -n kube-system logs -l k8s-app=cilium --since=1m | grep 'enable-l2-annou
 kubectl -n kube-system logs -l name=cilium-operator --since=1m | grep 'enable-l2-announcements'
 ```
 
+### Helm chart の Capabilities 制約
+
+Flux の helm-controller は HelmRelease upgrade 時に **新規インストールした CRD を `.Capabilities.APIVersions` で検出できない**場合がある。
+Cilium の `gatewayAPI.gatewayClass.create` はデフォルト `"auto"`（CRD 存在時のみ作成）のため、GatewayClass が生成されないことがある。
+
+**対処:** `gatewayAPI.gatewayClass.create: "true"` を明示して常に作成させる（現在の設定済み）。
+新しい CRD に依存する Helm chart 設定を追加する際は同様に `auto` を避けること。
+
 ## ネットワーク情報
 
 | 用途 | 値 |

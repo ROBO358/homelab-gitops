@@ -109,6 +109,7 @@ tasks:
     deps: [ctx:check]
     cmds:
       - kubectl create deployment nginx-gwtest --image=nginx
+      - kubectl rollout status deployment/nginx-gwtest --timeout=60s
       - kubectl expose deployment nginx-gwtest --port=80
       - |
         cat <<EOF | kubectl apply -f -
