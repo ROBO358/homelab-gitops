@@ -4,6 +4,8 @@ metadata:
   name: cilium
   namespace: flux-system
 spec:
+  dependsOn:
+    - name: gateway-api-crds
   interval: 10m
   retryInterval: 1m
   path: ./infrastructure/cilium/controller

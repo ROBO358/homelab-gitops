@@ -42,7 +42,7 @@
 |---|---|---|
 | Flux v2.8.5 | ✅ | GitOps エンジン（main ブランチを 1 分ごとに同期）|
 | Cilium 1.19.2 | ✅ | CNI / kube-proxy 置き換え / 暗号化 / LB / Gateway |
-| Cilium Gateway API | 🔲 | HTTP/HTTPS ルーティング（Envoy ベース）|
+| Cilium Gateway API | ✅ | HTTP/HTTPS ルーティング（Envoy ベース）|
 | cert-manager | 🔲 | TLS 証明書自動管理（LAN 向け）|
 | cloudflared | 🔲 | Cloudflare Tunnel によるインターネット公開 |
 | Longhorn | 🔲 | 永続ストレージ（ノードディスク使用）|
@@ -77,14 +77,8 @@ IPAM: kubernetes モード
 暗号化: WireGuard（Pod 間通信、nodeEncryption: false）
 L2 Announcements: 有効（worker のみ ARP 広告、interface: enp1s0）
 Hubble: Relay + UI 有効
-envoy: 無効（現在）→ Gateway API 導入時に有効化
-```
-
-### Gateway API 導入後の構成 🔲
-
-```
 envoy: 有効（standalone DaemonSet）
-Gateway API: 有効
+Gateway API: 有効（GatewayClass: cilium）
 ```
 
 `GatewayClass` に `cilium` を使用し、外部の Ingress Controller を持ち込まない。
@@ -93,7 +87,7 @@ Gateway API: 有効
 
 ## トラフィックフロー
 
-### LAN アクセス ✅（LoadBalancer サービス）/ 🔲（Gateway API）
+### LAN アクセス ✅（LoadBalancer サービス + Gateway API）
 
 ```
 LAN ユーザー
@@ -103,7 +97,7 @@ LAN ユーザー
 Cilium L2 Announcements
   │ elected worker が ARP reply
   ▼
-Gateway LoadBalancer IP (192.168.1.100:80/443)  🔲
+Gateway LoadBalancer IP (192.168.1.100:80/443)  ✅
   │
   │ Cilium eBPF + Envoy
   ▼
@@ -160,9 +154,12 @@ Pod A ──WireGuard 暗号化トンネル──▶ Pod B
 GitRepository (flux-system/flux-system)
   └── Kustomization: flux-system  →  clusters/yh-cluster/
         ├── flux-system/               # Flux 本体
-        └── cilium.yaml                # Kustomization: cilium + cilium-config
+        ├── gateway-api-crds.yaml      # Kustomization: gateway-api-crds
+        │     └── gateway-api-crds  →  infrastructure/gateway-api-crds/
+        │           Gateway API v1.4.1 標準 CRDs (5 種)
+        └── cilium.yaml                # Kustomization: cilium + cilium-config (dependsOn: gateway-api-crds)
               ├── cilium           →  infrastructure/cilium/controller/
-              │     HelmRepository + HelmRelease (Cilium 1.19.2)
+              │     HelmRepository + HelmRelease (Cilium 1.19.2, envoy + gatewayAPI 有効)
               └── cilium-config    →  infrastructure/cilium/config/
                     CiliumLoadBalancerIPPool + CiliumL2AnnouncementPolicy
 ```

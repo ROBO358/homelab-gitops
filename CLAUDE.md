@@ -105,7 +105,9 @@ task verify:cilium          # Cilium adoption annotation / status / feature flag
 task verify:encryption      # WireGuard 暗号化ステータス
 task verify:hubble          # Hubble Relay / UI pods
 task verify:l2              # CiliumLoadBalancerIPPool / CiliumL2AnnouncementPolicy
+task verify:gateway         # Gateway API CRDs / GatewayClass / cilium-envoy DS
 task test:lb                # nginx LB デプロイ → EXTERNAL-IP 取得 → curl → cleanup
+task test:gateway           # nginx + Gateway + HTTPRoute → EXTERNAL-IP 取得 → curl → cleanup
 ```
 
 ## インフラ追加の手順

@@ -78,9 +78,11 @@ spec:
       type: wireguard
       nodeEncryption: false
 
-    # Disable standalone envoy DaemonSet (not needed without L7 policy)
     envoy:
-      enabled: false
+      enabled: true
+
+    gatewayAPI:
+      enabled: true
 
     hubble:
       relay:

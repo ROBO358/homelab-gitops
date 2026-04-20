@@ -32,9 +32,9 @@ infrastructure/
 ### Done
 - [x] Flux v2 bootstrap
 - [x] Cilium runtime — HelmRelease + WireGuard encryption + Hubble + `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`
+- [x] Cilium Gateway API — `GatewayClass cilium` + Envoy DaemonSet + Gateway API v1.4.1 CRDs
 
 ### Next
-- [ ] Ingress Controller (ingress-nginx) — HTTP/HTTPS routing
 - [ ] Longhorn — persistent storage using node disks
 - [ ] RBAC — cluster access control
 - [ ] External Secrets Operator + 1Password — 1Password-backed Kubernetes Secrets (including Flux's own credentials)

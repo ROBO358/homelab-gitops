@@ -6,6 +6,8 @@ vars:
   CILIUM_NS: kube-system
   # Keep in sync with yh-talos Taskfile.yml CILIUM_VERSION
   CILIUM_VERSION: "1.19.2"
+  # Keep in sync with infrastructure/gateway-api-crds/kustomization.yaml URLs
+  GATEWAY_API_VERSION: "1.4.1"
 
 tasks:
   default:
@@ -89,6 +91,68 @@ tasks:
       - kubectl -n {{.CILIUM_NS}} rollout restart ds/cilium deploy/cilium-operator
       - kubectl -n {{.CILIUM_NS}} rollout status ds/cilium --timeout=5m
       - kubectl -n {{.CILIUM_NS}} rollout status deploy/cilium-operator --timeout=2m
+
+  # ────────────────────────────────
+  # gateway: Gateway API operations
+  # ────────────────────────────────
+
+  verify:gateway:
+    desc: "Gateway API CRDs, GatewayClass, envoy DS status"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get crd | grep gateway.networking.k8s.io
+      - kubectl get gatewayclass
+      - kubectl -n {{.CILIUM_NS}} get ds cilium-envoy
+
+  test:gateway:
+    desc: "Deploy nginx + Gateway + HTTPRoute, verify EXTERNAL-IP, curl, cleanup"
+    deps: [ctx:check]
+    cmds:
+      - kubectl create deployment nginx-gwtest --image=nginx
+      - kubectl expose deployment nginx-gwtest --port=80
+      - |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: Gateway
+        metadata:
+          name: gwtest
+          namespace: default
+        spec:
+          gatewayClassName: cilium
+          listeners:
+            - name: http
+              port: 80
+              protocol: HTTP
+        ---
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: HTTPRoute
+        metadata:
+          name: gwtest
+          namespace: default
+        spec:
+          parentRefs: [{name: gwtest}]
+          rules:
+            - backendRefs:
+                - name: nginx-gwtest
+                  port: 80
+        EOF
+      - |
+        echo "Waiting for Gateway EXTERNAL-IP (up to 60s)..."
+        for i in $(seq 1 30); do
+          ip=$(kubectl get gateway gwtest -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
+          if [ -n "$ip" ]; then
+            echo "EXTERNAL-IP: $ip"
+            curl -sI "http://$ip" | head -1
+            break
+          fi
+          sleep 2
+        done
+        if [ -z "$ip" ]; then
+          echo "Timed out waiting for Gateway EXTERNAL-IP" >&2
+          exit 1
+        fi
+      - defer: kubectl delete gateway,httproute gwtest --ignore-not-found
+      - defer: kubectl delete deployment,svc nginx-gwtest --ignore-not-found
 
   # ────────────────────────────────
   # verify: cluster / cilium state
