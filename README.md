@@ -11,7 +11,8 @@ This repository manages:
 
 Talos machine configuration, cluster lifecycle, and **CNI (Cilium) bootstrap manifest** are managed in [yh-talos](https://github.com/ROBO358/yh-talos).
 
-See [CLAUDE.md](./CLAUDE.md) for details on repository structure, the division of responsibilities between `yh-talos` and this repo, and the Cilium bootstrap / Flux handoff pattern.
+See [docs/architecture.md](./docs/architecture.md) for system design including network topology, traffic flows, and planned components.
+See [CLAUDE.md](./CLAUDE.md) for repository structure, operational rules, and the Cilium bootstrap / Flux handoff pattern.
 
 ## Structure
 
