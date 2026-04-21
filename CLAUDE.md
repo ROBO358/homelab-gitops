@@ -87,16 +87,32 @@ kubectl -n kube-system logs -l name=cilium-operator --since=1m | grep 'enable-l2
 
 ### ESO onepasswordSDK provider の ExternalSecret 形式
 
-ESO の `onepasswordSDK` provider は **`dataFrom.extract`** のみ対応。`data[].remoteRef` は ESO のバリデーションを通過しても provider 側でエラーになる。
+`onepasswordSDK` provider は **2種類** の形式をサポートする。
+
+**① `dataFrom.extract` — アイテムの全フィールドを一括取得（推奨）**
 
 ```yaml
 spec:
   dataFrom:
     - extract:
-        key: <1Password-item-name>   # vault: yh-cluster 内のアイテム名
+        key: <item-name>      # vault: yh-cluster 内のアイテム名
 ```
 
-同期後の Secret キーは **1Password のフィールドラベル**と一致する（Password アイテムの場合 `password`）。
+同期後の Secret キーは 1Password のフィールドラベルと一致する（Password アイテムなら `password`）。
+
+**② `data[].remoteRef` — 特定フィールドのみ取得**
+
+`key` は `<item>/<field>` 形式（スラッシュ区切り）。`property` フィールドは**使わない**。
+
+```yaml
+spec:
+  data:
+    - secretKey: my-password
+      remoteRef:
+        key: <item-name>/password   # "item/field" 形式
+```
+
+**よくある誤り:** `key: <item-name>` + `property: <field>` の組み合わせはエラーになる（provider が op:// URI を要求するエラーを返す）。
 
 ### Helm chart の Capabilities 制約
 

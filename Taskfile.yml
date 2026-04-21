@@ -110,9 +110,12 @@ tasks:
       - kubectl create namespace {{.ESO_NS}} --dry-run=client -o yaml | kubectl apply -f -
       - |
         token=$({{.OP_CMD}} item get "Service Account Auth Token: yh-cluster" \
-          --vault "Private" --fields "認証情報" --reveal 2>&1)
+          --vault "Private" --fields "認証情報" --reveal) || {
+          echo "ERROR: op exited non-zero. Run '{{.OP_CMD}} signin' first." >&2
+          exit 1
+        }
         if [ -z "$token" ]; then
-          echo "ERROR: op returned empty token. Run '{{.OP_CMD}} signin' first." >&2
+          echo "ERROR: op returned empty token." >&2
           exit 1
         fi
         kubectl create secret generic onepassword-token \
@@ -136,7 +139,7 @@ tasks:
     deps: [ctx:check]
     # Prereq: 1Password yh-cluster vault に Password タイプの "eso-smoke-test" item を作成し
     #         password フィールドに任意の文字列を設定しておく
-    # Note: onepasswordSDK provider は dataFrom.extract を使用する（data[].remoteRef は非対応）
+    # Note: dataFrom.extract を使用（全フィールドを一括取得）
     #       Secret のキーは 1Password のフィールドラベルと一致する（例: password）
     cmds:
       - |
