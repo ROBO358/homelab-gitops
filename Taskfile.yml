@@ -11,6 +11,9 @@ vars:
   # Keep in sync with infrastructure/external-secrets/controller/helmrelease.yaml
   ESO_NS: external-secrets
   ESO_VERSION: "2.3.0"
+  # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
+  OP_CMD:
+    sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
 
 tasks:
   default:
@@ -106,9 +109,10 @@ tasks:
     cmds:
       - kubectl create namespace {{.ESO_NS}} --dry-run=client -o yaml | kubectl apply -f -
       - |
-        token=$(op read "op://Private/Service Account Auth Token: yh-cluster/認証情報")
+        token=$({{.OP_CMD}} item get "Service Account Auth Token: yh-cluster" \
+          --vault "Private" --fields "認証情報" --reveal 2>&1)
         if [ -z "$token" ]; then
-          echo "ERROR: op read returned empty token. Run 'op signin' first." >&2
+          echo "ERROR: op returned empty token. Run '{{.OP_CMD}} signin' first." >&2
           exit 1
         fi
         kubectl create secret generic onepassword-token \
