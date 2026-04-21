@@ -135,7 +135,9 @@ tasks:
     desc: "E2E: ExternalSecret for yh-cluster/eso-smoke-test item -> Secret, verify, cleanup"
     deps: [ctx:check]
     # Prereq: 1Password yh-cluster vault に Password タイプの "eso-smoke-test" item を作成し
-    #         built-in の password フィールドに任意の文字列を設定しておく（カスタムフィールド不要）
+    #         password フィールドに任意の文字列を設定しておく
+    # Note: onepasswordSDK provider は dataFrom.extract を使用する（data[].remoteRef は非対応）
+    #       Secret のキーは 1Password のフィールドラベルと一致する（例: password）
     cmds:
       - |
         cat <<EOF | kubectl apply -f -
@@ -151,19 +153,17 @@ tasks:
             name: onepassword
           target:
             name: eso-smoke-test
-          data:
-            - secretKey: value
-              remoteRef:
+          dataFrom:
+            - extract:
                 key: eso-smoke-test
-                property: password
         EOF
       - |
         echo "Waiting for Secret default/eso-smoke-test (up to 60s)..."
         for i in $(seq 1 30); do
           val=$(kubectl -n default get secret eso-smoke-test \
-                -o jsonpath='{.data.value}' 2>/dev/null | base64 -d 2>/dev/null)
+                -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null)
           if [ -n "$val" ]; then
-            echo "Secret synced: value=$val"
+            echo "Secret synced: password=$val"
             break
           fi
           sleep 2
