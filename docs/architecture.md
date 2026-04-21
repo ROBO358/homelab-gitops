@@ -46,7 +46,7 @@
 | cert-manager | 🔲 | TLS 証明書自動管理（LAN 向け）|
 | cloudflared | 🔲 | Cloudflare Tunnel によるインターネット公開 |
 | Longhorn | 🔲 | 永続ストレージ（ノードディスク使用）|
-| External Secrets Operator | 🔲 | 1Password からシークレットを同期 |
+| External Secrets Operator | ✅ | 1Password SDK で yh-cluster vault のシークレットを同期 |
 
 ### オブザーバビリティ
 
@@ -157,41 +157,49 @@ GitRepository (flux-system/flux-system)
         ├── gateway-api-crds.yaml      # Kustomization: gateway-api-crds
         │     └── gateway-api-crds  →  infrastructure/gateway-api-crds/
         │           Gateway API v1.4.1 標準 CRDs (5 種)
-        └── cilium.yaml                # Kustomization: cilium + cilium-config (dependsOn: gateway-api-crds)
-              ├── cilium           →  infrastructure/cilium/controller/
-              │     HelmRepository + HelmRelease (Cilium 1.19.2, envoy + gatewayAPI 有効)
-              └── cilium-config    →  infrastructure/cilium/config/
-                    CiliumLoadBalancerIPPool + CiliumL2AnnouncementPolicy
+        ├── cilium.yaml                # Kustomization: cilium + cilium-config (dependsOn: gateway-api-crds)
+        │     ├── cilium           →  infrastructure/cilium/controller/
+        │     │     HelmRepository + HelmRelease (Cilium 1.19.2, envoy + gatewayAPI 有効)
+        │     └── cilium-config    →  infrastructure/cilium/config/
+        │           CiliumLoadBalancerIPPool + CiliumL2AnnouncementPolicy
+        └── external-secrets.yaml      # Kustomization: external-secrets + external-secrets-config
+              ├── external-secrets  →  infrastructure/external-secrets/controller/
+              │     Namespace + HelmRepository + HelmRelease (ESO v2.3.0)
+              └── external-secrets-config  →  infrastructure/external-secrets/config/
+                    ClusterSecretStore（1Password SDK、vault: yh-cluster）
 ```
 
-### Gateway API + cloudflared 導入後 🔲
+### cloudflared 導入後 🔲
 
 ```
 GitRepository (flux-system/flux-system)
   └── Kustomization: flux-system  →  clusters/yh-cluster/
         ├── flux-system/
-        ├── cilium.yaml                # cilium + cilium-config（変更: envoy/gatewayAPI 有効化）
-        ├── cloudflared.yaml           # Kustomization: cloudflared
-        │     Deployment + Secret（External Secrets 経由）
-        └── external-secrets.yaml     # Kustomization: external-secrets
-              HelmRelease + ClusterSecretStore（1Password 接続）
+        ├── gateway-api-crds.yaml
+        ├── cilium.yaml
+        ├── external-secrets.yaml      # 既存
+        └── cloudflared.yaml           # Kustomization: cloudflared
+              Deployment + ExternalSecret（ESO 経由で tunnel token を 1Password から取得）
 ```
 
 アプリごとの `HTTPRoute` / `Gateway` リソースは各アプリの namespace に配置する。
 
 ---
 
-## シークレット管理設計 🔲
+## シークレット管理設計 ✅
 
 ```
-1Password Vault
-  └── "homelab" アイテム
-        ├── cloudflared tunnel token
+1Password
+  ├── Vault: Private
+  │     └── "Service Account Auth Token: yh-cluster"（ESO 認証用 SA Token）
+  │           ※ task eso:bootstrap-secret で cluster に手動投入（Flux 管理外）
+  └── Vault: yh-cluster（クラスタ固有シークレット）
+        ├── cloudflared tunnel token（🔲 cloudflared 導入時）
         ├── その他アプリシークレット
         └── ...
 
-External Secrets Operator
-  └── ClusterSecretStore（1Password Connect 経由）
+External Secrets Operator（ESO v2.3.0）
+  └── ClusterSecretStore: onepassword（1Password SDK provider）
         └── ExternalSecret → Kubernetes Secret（各 namespace）
 ```
 

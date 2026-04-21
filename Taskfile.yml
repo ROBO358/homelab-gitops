@@ -8,6 +8,9 @@ vars:
   CILIUM_VERSION: "1.19.2"
   # Keep in sync with infrastructure/gateway-api-crds/kustomization.yaml URLs
   GATEWAY_API_VERSION: "1.4.1"
+  # Keep in sync with infrastructure/external-secrets/controller/helmrelease.yaml
+  ESO_NS: external-secrets
+  ESO_VERSION: "2.3.0"
 
 tasks:
   default:
@@ -91,6 +94,80 @@ tasks:
       - kubectl -n {{.CILIUM_NS}} rollout restart ds/cilium deploy/cilium-operator
       - kubectl -n {{.CILIUM_NS}} rollout status ds/cilium --timeout=5m
       - kubectl -n {{.CILIUM_NS}} rollout status deploy/cilium-operator --timeout=2m
+
+  # ────────────────────────────────
+  # eso: External Secrets Operator lifecycle
+  # ────────────────────────────────
+
+  eso:bootstrap-secret:
+    desc: "Create onepassword-token Secret from 1Password (run once after cluster rebuild)"
+    deps: [ctx:check]
+    prompt: "This reads op://Private/Service Account Auth Token: yh-cluster/認証情報 via op CLI and creates a Secret in external-secrets namespace. Continue?"
+    cmds:
+      - kubectl create namespace {{.ESO_NS}} --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        token=$(op read "op://Private/Service Account Auth Token: yh-cluster/認証情報")
+        if [ -z "$token" ]; then
+          echo "ERROR: op read returned empty token. Run 'op signin' first." >&2
+          exit 1
+        fi
+        kubectl create secret generic onepassword-token \
+          -n {{.ESO_NS}} \
+          --from-literal=token="$token" \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+  verify:eso:
+    desc: "ESO pods + ClusterSecretStore status"
+    deps: [ctx:check]
+    cmds:
+      - kubectl -n {{.ESO_NS}} get pod
+      - kubectl get clustersecretstore
+      - |
+        echo "== onepassword ClusterSecretStore Ready status =="
+        kubectl get clustersecretstore onepassword \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{"\n"}'
+
+  test:eso:
+    desc: "E2E: ExternalSecret for yh-cluster/eso-smoke-test item -> Secret, verify, cleanup"
+    deps: [ctx:check]
+    cmds:
+      - |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: eso-smoke-test
+          namespace: default
+        spec:
+          refreshInterval: 1m
+          secretStoreRef:
+            kind: ClusterSecretStore
+            name: onepassword
+          target:
+            name: eso-smoke-test
+          data:
+            - secretKey: value
+              remoteRef:
+                key: eso-smoke-test
+                property: value
+        EOF
+      - |
+        echo "Waiting for Secret default/eso-smoke-test (up to 60s)..."
+        for i in $(seq 1 30); do
+          val=$(kubectl -n default get secret eso-smoke-test \
+                -o jsonpath='{.data.value}' 2>/dev/null | base64 -d 2>/dev/null)
+          if [ -n "$val" ]; then
+            echo "Secret synced: value=$val"
+            break
+          fi
+          sleep 2
+        done
+        if [ -z "$val" ]; then
+          echo "Timed out. Check: kubectl describe externalsecret eso-smoke-test" >&2
+          kubectl -n default describe externalsecret eso-smoke-test 2>/dev/null | tail -20 >&2
+          exit 1
+        fi
+      - defer: kubectl -n default delete externalsecret,secret eso-smoke-test --ignore-not-found
 
   # ────────────────────────────────
   # gateway: Gateway API operations

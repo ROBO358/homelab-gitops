@@ -46,10 +46,16 @@ clusters/
       gotk-sync.yaml         # GitRepository + flux-system Kustomization（直接編集しない）
       kustomization.yaml
     cilium.yaml          # Cilium の Flux Kustomization 定義
+    gateway-api-crds.yaml  # Gateway API CRDs の Flux Kustomization 定義
+    external-secrets.yaml  # ESO の Flux Kustomization 定義
 infrastructure/
   cilium/                # CNI（ブートストラップは yh-talos 側の inlineManifests）
     controller/          # HelmRepository / HelmRelease
     config/              # CiliumLoadBalancerIPPool / CiliumL2AnnouncementPolicy
+  gateway-api-crds/      # Gateway API v1.4.1 標準 CRDs
+  external-secrets/      # External Secrets Operator
+    controller/          # Namespace / HelmRepository / HelmRelease
+    config/              # ClusterSecretStore（1Password SDK）
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -114,9 +120,25 @@ task verify:encryption      # WireGuard 暗号化ステータス
 task verify:hubble          # Hubble Relay / UI pods
 task verify:l2              # CiliumLoadBalancerIPPool / CiliumL2AnnouncementPolicy
 task verify:gateway         # Gateway API CRDs / GatewayClass / cilium-envoy DS
+task verify:eso             # ESO pods + ClusterSecretStore Ready status
 task test:lb                # nginx LB デプロイ → EXTERNAL-IP 取得 → curl → cleanup
 task test:gateway           # nginx + Gateway + HTTPRoute → EXTERNAL-IP 取得 → curl → cleanup
+task test:eso               # ExternalSecret -> Secret 同期確認（1Password yh-cluster vault）
+task eso:bootstrap-secret   # onepassword-token Secret を 1Password から作成（rebuild 後の初回のみ）
 ```
+
+### ESO bootstrap の運用フロー
+
+`onepassword-token` Secret は Flux 管理外（Git に入れない）のため、**クラスタ再構築後に一度だけ手動実行が必要**。
+
+```bash
+# 前提: op CLI がインストール済みで 1Password にサインイン済み
+op signin  # 必要な場合
+task eso:bootstrap-secret
+```
+
+実行後は Flux の通常 sync で ClusterSecretStore が自動的に Ready になる（最大 10 分）。
+`op read` に失敗する場合は `op account list` でアカウントを確認すること。
 
 ## インフラ追加の手順
 

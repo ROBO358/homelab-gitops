@@ -1,0 +1,34 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: external-secrets
+spec:
+  interval: 10m
+  releaseName: external-secrets
+  targetNamespace: external-secrets
+  chart:
+    spec:
+      chart: external-secrets
+      # Keep in sync with Taskfile.yml ESO_VERSION
+      version: "2.3.0"
+      sourceRef:
+        kind: HelmRepository
+        name: external-secrets
+        namespace: external-secrets
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  upgrade:
+    remediation:
+      retries: 3
+  rollback:
+    force: true
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    installCRDs: true
+    replicaCount: 1
