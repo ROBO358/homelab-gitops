@@ -85,6 +85,19 @@ kubectl -n kube-system logs -l k8s-app=cilium --since=1m | grep 'enable-l2-annou
 kubectl -n kube-system logs -l name=cilium-operator --since=1m | grep 'enable-l2-announcements'
 ```
 
+### ESO onepasswordSDK provider の ExternalSecret 形式
+
+ESO の `onepasswordSDK` provider は **`dataFrom.extract`** のみ対応。`data[].remoteRef` は ESO のバリデーションを通過しても provider 側でエラーになる。
+
+```yaml
+spec:
+  dataFrom:
+    - extract:
+        key: <1Password-item-name>   # vault: yh-cluster 内のアイテム名
+```
+
+同期後の Secret キーは **1Password のフィールドラベル**と一致する（Password アイテムの場合 `password`）。
+
 ### Helm chart の Capabilities 制約
 
 Flux の helm-controller は HelmRelease upgrade 時に **新規インストールした CRD を `.Capabilities.APIVersions` で検出できない**場合がある。
