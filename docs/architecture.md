@@ -66,7 +66,7 @@
 | ノード（LAN） | 192.168.1.201–213 |
 | クラスタ API VIP | 192.168.1.200 |
 | LoadBalancer プール | 192.168.1.100–199 |
-| Gateway IP（予定） | 192.168.1.100（プールの先頭）|
+| Gateway IP | 192.168.1.100（プールの先頭、L2 Announcements で広告）|
 | Pod CIDR | Kubernetes IPAM（Cilium 管理）|
 
 ### Cilium 機能構成 ✅

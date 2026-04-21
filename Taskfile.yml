@@ -130,6 +130,8 @@ tasks:
   test:eso:
     desc: "E2E: ExternalSecret for yh-cluster/eso-smoke-test item -> Secret, verify, cleanup"
     deps: [ctx:check]
+    # Prereq: 1Password yh-cluster vault に Password タイプの "eso-smoke-test" item を作成し
+    #         built-in の password フィールドに任意の文字列を設定しておく（カスタムフィールド不要）
     cmds:
       - |
         cat <<EOF | kubectl apply -f -
@@ -139,7 +141,7 @@ tasks:
           name: eso-smoke-test
           namespace: default
         spec:
-          refreshInterval: 1m
+          refreshInterval: 1h
           secretStoreRef:
             kind: ClusterSecretStore
             name: onepassword
@@ -149,7 +151,7 @@ tasks:
             - secretKey: value
               remoteRef:
                 key: eso-smoke-test
-                property: value
+                property: password
         EOF
       - |
         echo "Waiting for Secret default/eso-smoke-test (up to 60s)..."

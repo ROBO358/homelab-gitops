@@ -127,18 +127,28 @@ task test:eso               # ExternalSecret -> Secret 同期確認（1Password 
 task eso:bootstrap-secret   # onepassword-token Secret を 1Password から作成（rebuild 後の初回のみ）
 ```
 
-### ESO bootstrap の運用フロー
+### クラスタ再構築後のチェックリスト
 
-`onepassword-token` Secret は Flux 管理外（Git に入れない）のため、**クラスタ再構築後に一度だけ手動実行が必要**。
+クラスタを再構築（または `flux:uninstall` → `flux:bootstrap`）した後に必要な手動手順:
 
 ```bash
-# 前提: op CLI がインストール済みで 1Password にサインイン済み
-op signin  # 必要な場合
+# 1. Flux bootstrap（最初の一回のみ）
+task flux:bootstrap
+
+# 2. ESO 用 Secret を 1Password から投入（Flux 管理外の唯一の手動手順）
+#    前提: op CLI がインストール済み・サインイン済み（op signin）
 task eso:bootstrap-secret
+
+# 3. Flux が全コンポーネントを同期するまで待つ
+task flux:status
+
+# 4. 動作確認
+task verify:cilium
+task verify:gateway
+task verify:eso
 ```
 
-実行後は Flux の通常 sync で ClusterSecretStore が自動的に Ready になる（最大 10 分）。
-`op read` に失敗する場合は `op account list` でアカウントを確認すること。
+`task eso:bootstrap-secret` を忘れると `ClusterSecretStore onepassword` が永続的に Not Ready になる（Flux はエラーを出さないが `task verify:eso` で検知できる）。
 
 ## インフラ追加の手順
 
