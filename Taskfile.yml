@@ -11,6 +11,9 @@ vars:
   # Keep in sync with infrastructure/external-secrets/controller/helmrelease.yaml
   ESO_NS: external-secrets
   ESO_VERSION: "2.3.0"
+  # Keep in sync with infrastructure/longhorn/controller/helmrelease.yaml
+  LONGHORN_NS: longhorn-system
+  LONGHORN_VERSION: "1.11.1"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
@@ -177,6 +180,68 @@ tasks:
           exit 1
         fi
       - defer: kubectl -n default delete externalsecret,secret eso-smoke-test --ignore-not-found
+
+  # ────────────────────────────────
+  # longhorn: Longhorn storage lifecycle
+  # ────────────────────────────────
+
+  longhorn:ui:
+    desc: "Port-forward Longhorn UI to http://localhost:8080 (Ctrl-C to stop)"
+    deps: [ctx:check]
+    cmds:
+      - |
+        echo "Longhorn UI: http://localhost:8080"
+        kubectl -n {{.LONGHORN_NS}} port-forward svc/longhorn-frontend 8080:80
+
+  verify:longhorn:
+    desc: "Longhorn manager/CSI pods, StorageClass, and node disk status"
+    deps: [ctx:check]
+    cmds:
+      - kubectl -n {{.LONGHORN_NS}} get pod
+      - kubectl get storageclass
+      - kubectl -n {{.LONGHORN_NS}} get nodes.longhorn.io
+
+  test:longhorn:
+    desc: "E2E: create PVC -> mount in pod -> write/read file -> cleanup"
+    deps: [ctx:check]
+    cmds:
+      - |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: longhorn-smoke-test
+          namespace: default
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 1Gi
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: longhorn-smoke-test
+          namespace: default
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: writer
+              image: busybox:1.36
+              command: ["sh","-c","echo hello-longhorn > /data/test.txt && cat /data/test.txt && sleep 5"]
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: longhorn-smoke-test
+        EOF
+      - kubectl -n default wait --for=condition=ContainersReady pod/longhorn-smoke-test --timeout=120s
+      - |
+        echo "== Pod logs =="
+        kubectl -n default logs longhorn-smoke-test
+      - defer: kubectl -n default delete pod,pvc longhorn-smoke-test --ignore-not-found
 
   # ────────────────────────────────
   # gateway: Gateway API operations

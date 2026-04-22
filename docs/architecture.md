@@ -45,7 +45,7 @@
 | Cilium Gateway API | ✅ | HTTP/HTTPS ルーティング（Envoy ベース）|
 | cert-manager | 🔲 | TLS 証明書自動管理（LAN 向け）|
 | cloudflared | 🔲 | Cloudflare Tunnel によるインターネット公開 |
-| Longhorn | 🔲 | 永続ストレージ（ノードディスク使用）|
+| Longhorn 1.11.1 | ✅ | 永続ストレージ（worker NVMe /var/mnt/longhorn、3x レプリケーション、default StorageClass）|
 | External Secrets Operator | ✅ | 1Password SDK で yh-cluster vault のシークレットを同期 |
 
 ### オブザーバビリティ
@@ -162,11 +162,15 @@ GitRepository (flux-system/flux-system)
         │     │     HelmRepository + HelmRelease (Cilium 1.19.2, envoy + gatewayAPI 有効)
         │     └── cilium-config    →  infrastructure/cilium/config/
         │           CiliumLoadBalancerIPPool + CiliumL2AnnouncementPolicy
-        └── external-secrets.yaml      # Kustomization: external-secrets + external-secrets-config
-              ├── external-secrets  →  infrastructure/external-secrets/controller/
-              │     Namespace + HelmRepository + HelmRelease (ESO v2.3.0)
-              └── external-secrets-config  →  infrastructure/external-secrets/config/
-                    ClusterSecretStore（1Password SDK、vault: yh-cluster）
+        ├── external-secrets.yaml      # Kustomization: external-secrets + external-secrets-config
+        │     ├── external-secrets  →  infrastructure/external-secrets/controller/
+        │     │     Namespace + HelmRepository + HelmRelease (ESO v2.3.0)
+        │     └── external-secrets-config  →  infrastructure/external-secrets/config/
+        │           ClusterSecretStore（1Password SDK、vault: yh-cluster）
+        └── longhorn.yaml              # Kustomization: longhorn
+              └── longhorn  →  infrastructure/longhorn/controller/
+                    Namespace (pod-security: privileged) + HelmRepository + HelmRelease (Longhorn 1.11.1)
+                    defaultDataPath: /var/mnt/longhorn, 3x replicas, default StorageClass
 ```
 
 ### cloudflared 導入後 🔲

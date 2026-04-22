@@ -56,6 +56,8 @@ infrastructure/
   external-secrets/      # External Secrets Operator
     controller/          # Namespace / HelmRepository / HelmRelease
     config/              # ClusterSecretStore（1Password SDK）
+  longhorn/              # Longhorn 永続ストレージ
+    controller/          # Namespace (pod-security: privileged) / HelmRepository / HelmRelease
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -150,10 +152,29 @@ task verify:hubble          # Hubble Relay / UI pods
 task verify:l2              # CiliumLoadBalancerIPPool / CiliumL2AnnouncementPolicy
 task verify:gateway         # Gateway API CRDs / GatewayClass / cilium-envoy DS
 task verify:eso             # ESO pods + ClusterSecretStore Ready status
+task longhorn:ui            # Longhorn UI を http://localhost:8080 に port-forward（Ctrl-C で停止）
+task verify:longhorn        # Longhorn pods / StorageClass / nodes 状態確認
+task test:longhorn          # PVC → Pod → 書き込み → 読み出しの E2E 確認
 task test:lb                # nginx LB デプロイ → EXTERNAL-IP 取得 → curl → cleanup
 task test:gateway           # nginx + Gateway + HTTPRoute → EXTERNAL-IP 取得 → curl → cleanup
 task test:eso               # ExternalSecret -> Secret 同期確認（1Password yh-cluster vault）
 task eso:bootstrap-secret   # onepassword-token Secret を 1Password から作成（rebuild 後の初回のみ）
+```
+
+### Longhorn 前提条件（yh-talos 側）
+
+Longhorn は以下の yh-talos 側設定が前提。**クラスタ再構築時は homelab-gitops より先に yh-talos 側を適用すること。**
+
+| 必要事項 | yh-talos の対応箇所 |
+|---|---|
+| `siderolabs/iscsi-tools` system extension | `talconfig.yaml` worker `schematic.customization.systemExtensions` |
+| `siderolabs/util-linux-tools` system extension | 同上 |
+| `/var/mnt/longhorn` bind mount | `talconfig.yaml` worker `machine.kubelet.extraMounts` |
+
+再構築後の確認:
+```bash
+# TALOSCONFIG=~/k8s/talhelper/clusterconfig/talosconfig
+talosctl -n 192.168.1.211 -e 192.168.1.211 services | grep ext-iscsid  # Running であること
 ```
 
 ### クラスタ再構築後のチェックリスト

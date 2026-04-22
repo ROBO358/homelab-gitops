@@ -34,7 +34,7 @@ infrastructure/
 - [x] Cilium runtime — HelmRelease + WireGuard encryption + Hubble + `CiliumLoadBalancerIPPool` + `CiliumL2AnnouncementPolicy`
 - [x] Cilium Gateway API — `GatewayClass cilium` + Envoy DaemonSet + Gateway API v1.4.1 CRDs
 - [x] External Secrets Operator + 1Password SDK — `ClusterSecretStore` syncing secrets from 1Password `yh-cluster` vault
+- [x] Longhorn — persistent storage on worker NVMe (`/var/mnt/longhorn`) with 3x replication, default StorageClass
 
 ### Next
-- [ ] Longhorn — persistent storage using node disks
 - [ ] RBAC — cluster access control
