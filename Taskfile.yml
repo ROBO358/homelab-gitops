@@ -14,6 +14,9 @@ vars:
   # Keep in sync with infrastructure/longhorn/controller/helmrelease.yaml
   LONGHORN_NS: longhorn-system
   LONGHORN_VERSION: "1.11.1"
+  # Keep in sync with infrastructure/cert-manager/controller/helmrelease.yaml
+  CM_NS: cert-manager
+  CM_VERSION: "v1.16.2"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
@@ -242,6 +245,67 @@ tasks:
         echo "== Pod logs =="
         kubectl -n default logs longhorn-smoke-test
       - defer: kubectl -n default delete pod,pvc longhorn-smoke-test --ignore-not-found
+
+  # ────────────────────────────────
+  # cert-manager: certificate automation
+  # ────────────────────────────────
+
+  verify:cert-manager:
+    desc: "cert-manager pods + ClusterIssuers Ready status"
+    deps: [ctx:check]
+    cmds:
+      - kubectl -n {{.CM_NS}} get pod
+      - kubectl get clusterissuer
+      - |
+        echo "== ClusterIssuer Ready status =="
+        for issuer in letsencrypt-staging letsencrypt-prod; do
+          status=$(kubectl get clusterissuer "$issuer" \
+            -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+          echo "  $issuer: ${status:-NotFound}"
+        done
+
+  test:cert-manager:
+    desc: "E2E: issue cert with letsencrypt-staging (DNS-01 Cloudflare), verify, cleanup"
+    deps: [ctx:check]
+    # DNS-01 challenge: usually 1-3 min, max 6 min for DNS propagation
+    cmds:
+      - |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: cm-smoke
+          namespace: default
+        spec:
+          secretName: cm-smoke-tls
+          commonName: smoke.yh.k8s.tsuru.run
+          dnsNames: [smoke.yh.k8s.tsuru.run]
+          issuerRef:
+            kind: ClusterIssuer
+            name: letsencrypt-staging
+          duration: 2160h
+        EOF
+      - |
+        echo "Waiting for Certificate Ready (up to 6 min for DNS-01)..."
+        for i in $(seq 1 60); do
+          ready=$(kubectl -n default get certificate cm-smoke \
+            -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+          [ "$ready" = "True" ] && { echo "Ready"; break; }
+          sleep 6
+        done
+        if [ "$ready" != "True" ]; then
+          echo "Timed out"
+          kubectl -n default describe certificate cm-smoke
+          kubectl -n default get challenges 2>/dev/null | tail -5
+          exit 1
+        fi
+      - |
+        echo "== 発行された証明書 =="
+        kubectl -n default get secret cm-smoke-tls \
+          -o jsonpath='{.data.tls\.crt}' | base64 -d \
+          | openssl x509 -noout -subject -issuer -dates
+        echo "(issuer が '(STAGING) Let'\''s Encrypt' 系なら成功)"
+      - defer: kubectl -n default delete certificate,secret cm-smoke cm-smoke-tls --ignore-not-found
 
   # ────────────────────────────────
   # gateway: Gateway API operations

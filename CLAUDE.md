@@ -58,6 +58,9 @@ infrastructure/
     config/              # ClusterSecretStore（1Password SDK）
   longhorn/              # Longhorn 永続ストレージ
     controller/          # Namespace (pod-security: privileged) / HelmRepository / HelmRelease
+  cert-manager/          # TLS 証明書自動発行（Let's Encrypt DNS-01 / Cloudflare）
+    controller/          # Namespace / HelmRepository / HelmRelease
+    config/              # ExternalSecret（Cloudflare Token）/ ClusterIssuer x2
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -152,6 +155,8 @@ task verify:hubble          # Hubble Relay / UI pods
 task verify:l2              # CiliumLoadBalancerIPPool / CiliumL2AnnouncementPolicy
 task verify:gateway         # Gateway API CRDs / GatewayClass / cilium-envoy DS
 task verify:eso             # ESO pods + ClusterSecretStore Ready status
+task verify:cert-manager    # cert-manager pods + ClusterIssuers Ready status
+task test:cert-manager      # LE staging DNS-01 smoke test（1-3 分、最大 6 分）
 task longhorn:ui            # Longhorn UI を http://localhost:8080 に port-forward（Ctrl-C で停止）
 task verify:longhorn        # Longhorn pods / StorageClass / nodes 状態確認
 task test:longhorn          # PVC → Pod → 書き込み → 読み出しの E2E 確認
@@ -199,6 +204,44 @@ task verify:eso
 ```
 
 `task eso:bootstrap-secret` を忘れると `ClusterSecretStore onepassword` が永続的に Not Ready になる（Flux はエラーを出さないが `task verify:eso` で検知できる）。
+
+### 新サービスに TLS を付ける手順
+
+cert-manager（`letsencrypt-prod`）でサービスに TLS 証明書を発行するテンプレート。
+
+1. **Cloudflare に A レコードを追加**（手動）
+   - `<svc>.yh.k8s.tsuru.run` → `192.168.1.100`（Gateway LB IP）
+   - **proxy は OFF（灰色雲）**。オレンジ雲にすると Cloudflare edge に吸われ LAN に届かない
+
+2. **Certificate リソースを作成**（各サービスの namespace に配置）
+   ```yaml
+   apiVersion: cert-manager.io/v1
+   kind: Certificate
+   metadata:
+     name: <svc>-tls
+     namespace: <svc-namespace>
+   spec:
+     secretName: <svc>-tls
+     commonName: <svc>.yh.k8s.tsuru.run
+     dnsNames: [<svc>.yh.k8s.tsuru.run]
+     issuerRef:
+       kind: ClusterIssuer
+       name: letsencrypt-prod
+   ```
+
+3. **Gateway の listener に TLS 設定を追加**
+   ```yaml
+   listeners:
+     - name: https
+       port: 443
+       protocol: HTTPS
+       tls:
+         mode: Terminate
+         certificateRefs:
+           - name: <svc>-tls
+   ```
+
+4. **初回は letsencrypt-staging で動作確認してから prod に切り替え**（rate limit 対策）
 
 ## インフラ追加の手順
 

@@ -43,7 +43,7 @@
 | Flux v2.8.5 | ✅ | GitOps エンジン（main ブランチを 1 分ごとに同期）|
 | Cilium 1.19.2 | ✅ | CNI / kube-proxy 置き換え / 暗号化 / LB / Gateway |
 | Cilium Gateway API | ✅ | HTTP/HTTPS ルーティング（Envoy ベース）|
-| cert-manager | 🔲 | TLS 証明書自動管理（LAN 向け）|
+| cert-manager 1.16.2 | ✅ | TLS 証明書自動発行（Let's Encrypt DNS-01 / Cloudflare）|
 | cloudflared | 🔲 | Cloudflare Tunnel によるインターネット公開 |
 | Longhorn 1.11.1 | ✅ | 永続ストレージ（worker NVMe /var/mnt/longhorn、3x レプリケーション、default StorageClass）|
 | External Secrets Operator | ✅ | 1Password SDK で yh-cluster vault のシークレットを同期 |
@@ -54,6 +54,36 @@
 |---|---|---|
 | Hubble Relay | ✅ | クラスタ内ネットワークフロー収集 |
 | Hubble UI | ✅ | ネットワークフローの可視化 |
+
+---
+
+## TLS 証明書管理 ✅
+
+### 設計方針
+
+- LAN 公開サービスも **Let's Encrypt DNS-01** で証明書を発行する
+  - DNS-01 は A レコードを検証しないため LAN IP (RFC1918) でも発行可能
+  - public CA 証明書なので kube-apiserver・ブラウザが無設定で信頼（CA 配布不要）
+- インターネット公開は **Cloudflare Tunnel (cloudflared)** 経由。Cloudflare が edge で TLS 終端するため cluster 内は HTTP で完結 → cert-manager 不要
+- 自己署名 CA は現時点で用途なし（YAGNI）
+
+### ClusterIssuer 構成
+
+| ClusterIssuer | 用途 |
+|---|---|
+| `letsencrypt-staging` | smoke test 専用。prod のレートリミット消費なし |
+| `letsencrypt-prod` | 実サービス全般（Dex、Longhorn UI、Hubble UI 等） |
+
+DNS-01 challenge は Cloudflare API Token で `tsuru.run` ゾーンへ TXT レコードを書き込み（Cloudflare では `yh.k8s.tsuru.run` はゾーンではなくサブドメインのため、ゾーン単位の `tsuru.run` で指定）。cert-manager の ClusterIssuer `dnsZones: [yh.k8s.tsuru.run]` は cert-manager 内部のセレクターであり Cloudflare の zone 設定とは独立。Token は 1Password → ESO 経由で自動同期。
+
+### DNS: Cloudflare A レコードの登録方針
+
+| 種別 | Cloudflare 設定 |
+|---|---|
+| サービス A レコード（`<svc>.yh.k8s.tsuru.run`） | → `192.168.1.100`、**proxy OFF（灰色雲）** |
+| ACME TXT レコード（`_acme-challenge.*`） | cert-manager が自動で書き換え（短命） |
+
+proxy をオレンジ雲にすると Cloudflare edge に吸われて LAN に届かなくなるため必ず OFF にする。
 
 ---
 
