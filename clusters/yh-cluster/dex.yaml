@@ -8,6 +8,8 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/dex/controller
   prune: true
+  dependsOn:
+    - name: external-secrets-config   # ExternalSecret が ClusterSecretStore を参照するため
   sourceRef:
     kind: GitRepository
     name: flux-system
@@ -26,8 +28,7 @@ spec:
   prune: true
   dependsOn:
     - name: dex
-    - name: cert-manager-config
-    - name: external-secrets-config
+    - name: cert-manager-config       # ClusterIssuer Ready 後
   sourceRef:
     kind: GitRepository
     name: flux-system
