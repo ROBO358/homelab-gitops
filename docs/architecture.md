@@ -84,18 +84,39 @@ GitHub OAuth
 - Storage: kubernetes（CRD）
 - GitHub OAuth App credentials: 1Password `yh-cluster/dex-github-oauth` → ESO ExternalSecret → `dex-github-client` Secret
 
-### Phase A-2 🔲 — kube-apiserver OIDC 設定（yh-talos 側）
+### Phase A-2 ✅ — kube-apiserver OIDC + kubelogin + RBAC
 
 ```
-kubectl exec（kubelogin）→ Dex → ID Token
+kubectl --context oidc@yh-cluster get pod -A
   │
-kube-apiserver（oidc-issuer-url: https://dex.yh.k8s.tsuru.run）
-  │  groups claim: "oidc:ROBO358"
+  │ exec plugin: kubectl oidc-login get-token
   ▼
-ClusterRoleBinding: oidc:ROBO358 → view
+ブラウザ自動起動 → GitHub OAuth → Dex → ID Token (JWT)
+  │ preferred_username=ROBO358, iss=https://dex.yh.k8s.tsuru.run, aud=kubelogin
+  ▼
+kubectl が Authorization: Bearer <JWT> でリクエスト
+  │
+  ▼
+kube-apiserver（oidc-issuer-url: https://dex.yh.k8s.tsuru.run）
+  │ JWKS を Dex から取得して JWT 検証 → username = "ROBO358"
+  ▼
+RBAC evaluation
+  │ ClusterRoleBinding: oidc-user-robo358-view
+  │   subjects: [{kind: User, name: ROBO358}]
+  │   roleRef: {kind: ClusterRole, name: view}
+  ▼
+read-only 系 verb: allowed ✅  /  write 系・Secret: Forbidden ❌
 ```
 
-yh-talos 側の `talconfig.yaml` で `cluster.apiServer.extraArgs` に OIDC フラグを追加し、`talosctl upgrade-k8s` で適用する。
+**kube-apiserver OIDC フラグ（yh-talos `talconfig.yaml` で設定）:**
+
+| フラグ | 値 | 備考 |
+|---|---|---|
+| `--oidc-issuer-url` | `https://dex.yh.k8s.tsuru.run` | Dex の issuer URL |
+| `--oidc-client-id` | `kubelogin` | Dex static client ID |
+| `--oidc-username-claim` | `preferred_username` | GitHub login `ROBO358` をそのまま使用 |
+| `--oidc-groups-claim` | `groups` | 現時点で空配列（orgs なし）、将来の拡張用 |
+| `--oidc-ca-file` | **未指定** | Dex cert は Let's Encrypt public CA。system bundle で検証可能 |
 
 ---
 
@@ -248,12 +269,15 @@ GitRepository (flux-system/flux-system)
         │     │     Namespace + HelmRepository + HelmRelease (cert-manager v1.16.2)
         │     └── cert-manager-config  →  infrastructure/cert-manager/config/
         │           ExternalSecret（Cloudflare API Token）+ ClusterIssuer x2 (staging/prod)
-        └── dex.yaml                   # Kustomization: dex + dex-config (dependsOn: cert-manager-config + external-secrets-config)
-              ├── dex              →  infrastructure/dex/controller/
-              │     Namespace + HelmRepository + HelmRelease (Dex v2.44.0 / chart 0.24.0)
-              └── dex-config       →  infrastructure/dex/config/
-                    ExternalSecret（GitHub OAuth client）+ Certificate（LE prod）
-                    + Gateway（dex-gateway、LB IP 192.168.1.100）+ HTTPRoute
+        ├── dex.yaml                   # Kustomization: dex + dex-config (dependsOn: cert-manager-config + external-secrets-config)
+        │     ├── dex              →  infrastructure/dex/controller/
+        │     │     Namespace + HelmRepository + HelmRelease (Dex v2.44.0 / chart 0.24.0)
+        │     └── dex-config       →  infrastructure/dex/config/
+        │           ExternalSecret（GitHub OAuth client）+ Certificate（LE prod）
+        │           + Gateway（dex-gateway、LB IP 192.168.1.100）+ HTTPRoute
+        └── rbac-humans.yaml           # Kustomization: rbac-humans
+              └── rbac-humans      →  infrastructure/rbac-humans/
+                    ClusterRoleBinding: ROBO358(OIDC) → view
 ```
 
 ### cloudflared 導入後 🔲

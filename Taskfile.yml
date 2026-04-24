@@ -345,6 +345,80 @@ tasks:
           | openssl x509 -noout -subject -issuer -dates
 
   # ────────────────────────────────
+  # oidc: OIDC kubeconfig + verification
+  # ────────────────────────────────
+
+  oidc:setup:
+    desc: "Configure local kubeconfig to use Dex OIDC (requires: kubectl krew install oidc-login)"
+    prompt: "This adds 'oidc' user and 'oidc@yh-cluster' context to your kubeconfig. Continue?"
+    cmds:
+      - |
+        if ! kubectl oidc-login --help >/dev/null 2>&1; then
+          echo "ERROR: kubectl oidc-login plugin not found." >&2
+          echo "Install: kubectl krew install oidc-login" >&2
+          exit 1
+        fi
+      - |
+        kubectl config set-credentials oidc \
+          --exec-api-version=client.authentication.k8s.io/v1beta1 \
+          --exec-command=kubectl \
+          --exec-arg=oidc-login \
+          --exec-arg=get-token \
+          --exec-arg=--oidc-issuer-url=https://dex.yh.k8s.tsuru.run \
+          --exec-arg=--oidc-client-id=kubelogin \
+          --exec-arg=--oidc-extra-scope=email \
+          --exec-arg=--oidc-extra-scope=profile \
+          --exec-arg=--oidc-extra-scope=groups
+      - |
+        kubectl config set-context oidc@yh-cluster \
+          --cluster=yh-cluster \
+          --user=oidc
+      - echo "Switch with: kubectl config use-context oidc@yh-cluster"
+
+  verify:oidc:
+    desc: "Show OIDC ClusterRoleBindings and kube-apiserver OIDC flags"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get clusterrolebinding -l auth-source=oidc -o wide
+      - |
+        echo "== kube-apiserver OIDC flags =="
+        kubectl -n kube-system get pod -l component=kube-apiserver \
+          -o jsonpath='{.items[0].spec.containers[0].command}' \
+          | tr ',' '\n' | grep oidc \
+          || echo "(not applied yet — did you run talosctl apply-config?)"
+
+  test:oidc:
+    desc: "E2E via oidc@yh-cluster: get pod (allowed) + get secret (forbidden) + create (forbidden)"
+    cmds:
+      - |
+        current=$(kubectl config current-context)
+        if [ "$current" != "oidc@yh-cluster" ]; then
+          echo "Switching context to oidc@yh-cluster (was: $current)"
+          kubectl config use-context oidc@yh-cluster
+          trap "kubectl config use-context $current" EXIT
+        fi
+      - |
+        echo "== get pod -A (should succeed with 'view') =="
+        kubectl get pod -A | head -5
+      - |
+        echo "== get secret -A (should be Forbidden) =="
+        if kubectl get secret -A 2>&1 | tee /dev/stderr | grep -q 'Forbidden\|forbidden'; then
+          echo "PASS: Secret access denied"
+        else
+          echo "FAIL: Secret access should have been denied" >&2
+          exit 1
+        fi
+      - |
+        echo "== create deployment (should be Forbidden) =="
+        if kubectl create deployment oidc-test --image=nginx 2>&1 | grep -q 'Forbidden\|forbidden'; then
+          echo "PASS: create denied"
+        else
+          kubectl delete deployment oidc-test --ignore-not-found
+          echo "FAIL: create should have been denied" >&2
+          exit 1
+        fi
+
+  # ────────────────────────────────
   # gateway: Gateway API operations
   # ────────────────────────────────
 

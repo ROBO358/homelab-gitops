@@ -64,6 +64,8 @@ infrastructure/
   dex/                   # OIDC IdP bridge（GitHub connector、dex.yh.k8s.tsuru.run）
     controller/          # Namespace / HelmRepository / HelmRelease
     config/              # ExternalSecret（GitHub OAuth client）/ Certificate / Gateway / HTTPRoute
+  rbac-humans/           # 人間ユーザー向け RBAC（OIDC subject → ClusterRole binding）
+                         # ClusterRoleBinding: ROBO358(preferred_username) → view
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -162,6 +164,9 @@ task verify:cert-manager    # cert-manager pods + ClusterIssuers Ready status
 task test:cert-manager      # LE staging DNS-01 smoke test（1-3 分、最大 6 分）
 task verify:dex             # Dex pods / Certificate / Gateway / HTTPRoute 状態
 task test:dex               # OIDC discovery endpoint + TLS cert issuer 確認
+task oidc:setup             # kubeconfig に oidc user / oidc@yh-cluster context を追加（krew oidc-login 要）
+task verify:oidc            # OIDC ClusterRoleBinding + kube-apiserver OIDC フラグ確認
+task test:oidc              # E2E: oidc@yh-cluster で pod 取得 OK / secret・create は Forbidden
 task longhorn:ui            # Longhorn UI を http://localhost:8080 に port-forward（Ctrl-C で停止）
 task verify:longhorn        # Longhorn pods / StorageClass / nodes 状態確認
 task test:longhorn          # PVC → Pod → 書き込み → 読み出しの E2E 確認
@@ -247,6 +252,44 @@ cert-manager（`letsencrypt-prod`）でサービスに TLS 証明書を発行す
    ```
 
 4. **初回は letsencrypt-staging で動作確認してから prod に切り替え**（rate limit 対策）
+
+### OIDC でログインする手順（ローカル一回限りのセットアップ）
+
+前提: krew がインストール済みであること。
+
+```bash
+# 1. kubelogin plugin をインストール
+kubectl krew install oidc-login
+
+# 2. kubeconfig に oidc user / context を追加
+task oidc:setup
+
+# 3. OIDC context でアクセス（ブラウザが起動して GitHub 認証）
+kubectl --context oidc@yh-cluster get pod -A
+
+# 4. E2E 検証（read 許可 / write・Secret 拒否）
+task test:oidc
+
+# 5. 作業後は admin context に戻す
+kubectl config use-context admin@yh-cluster
+```
+
+OIDC 認証のフロー: `kubectl oidc-login get-token` → ブラウザ → GitHub OAuth → Dex → ID Token (JWT)
+  → kube-apiserver が JWKS 検証 → RBAC（`ClusterRoleBinding: oidc-user-robo358-view`）
+
+### yh-talos 側との連携事項
+
+kube-apiserver の OIDC 設定は `~/k8s/talhelper/talconfig.yaml` の `cluster.apiServer.extraArgs` で管理している。
+homelab-gitops の Dex と連動しており、現在以下のフラグが設定済み:
+
+| フラグ | 値 |
+|---|---|
+| `oidc-issuer-url` | `https://dex.yh.k8s.tsuru.run` |
+| `oidc-client-id` | `kubelogin` |
+| `oidc-username-claim` | `preferred_username` |
+| `oidc-groups-claim` | `groups` |
+
+Dex の issuer URL や static client ID を変更する場合は yh-talos 側の同フラグも合わせて更新し、`talhelper genconfig` + `talosctl apply-config` を実行すること。
 
 ## インフラ追加の手順
 
