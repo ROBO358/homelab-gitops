@@ -17,6 +17,10 @@ vars:
   # Keep in sync with infrastructure/cert-manager/controller/helmrelease.yaml
   CM_NS: cert-manager
   CM_VERSION: "v1.16.2"
+  # Keep in sync with infrastructure/dex/controller/helmrelease.yaml
+  DEX_NS: dex
+  DEX_VERSION: "0.24.0"
+  DEX_HOST: "dex.yh.k8s.tsuru.run"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
@@ -306,6 +310,39 @@ tasks:
           | openssl x509 -noout -subject -issuer -dates
         echo "(issuer が '(STAGING) Let'\''s Encrypt' 系なら成功)"
       - defer: kubectl -n default delete certificate,secret cm-smoke cm-smoke-tls --ignore-not-found
+
+  # ────────────────────────────────
+  # dex: OIDC bridge lifecycle
+  # ────────────────────────────────
+
+  verify:dex:
+    desc: "Dex pods, Certificate, Gateway, HTTPRoute status"
+    deps: [ctx:check]
+    cmds:
+      - kubectl -n {{.DEX_NS}} get pod
+      - kubectl -n {{.DEX_NS}} get certificate,gateway,httproute
+      - |
+        echo "== Certificate Ready status =="
+        kubectl -n {{.DEX_NS}} get certificate dex-tls \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{"\n"}'
+      - |
+        echo "== Gateway LB IP =="
+        kubectl -n {{.DEX_NS}} get gateway dex-gateway \
+          -o jsonpath='{.status.addresses[0].value}{"\n"}'
+
+  test:dex:
+    desc: "E2E: OIDC discovery endpoint returns valid JSON with browser-trusted cert"
+    deps: [ctx:check]
+    # Prereq: Cloudflare で dex.yh.k8s.tsuru.run A 192.168.1.100 (proxy OFF) が登録済み
+    cmds:
+      - |
+        echo "== OIDC discovery document =="
+        curl -sS --fail "https://{{.DEX_HOST}}/.well-known/openid-configuration" \
+          | python3 -m json.tool
+      - |
+        echo "== TLS cert issuer (should be 'Let'\''s Encrypt' — NOT STAGING) =="
+        echo | openssl s_client -servername {{.DEX_HOST}} -connect {{.DEX_HOST}}:443 2>/dev/null \
+          | openssl x509 -noout -subject -issuer -dates
 
   # ────────────────────────────────
   # gateway: Gateway API operations

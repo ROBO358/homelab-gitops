@@ -61,6 +61,9 @@ infrastructure/
   cert-manager/          # TLS 証明書自動発行（Let's Encrypt DNS-01 / Cloudflare）
     controller/          # Namespace / HelmRepository / HelmRelease
     config/              # ExternalSecret（Cloudflare Token）/ ClusterIssuer x2
+  dex/                   # OIDC IdP bridge（GitHub connector、dex.yh.k8s.tsuru.run）
+    controller/          # Namespace / HelmRepository / HelmRelease
+    config/              # ExternalSecret（GitHub OAuth client）/ Certificate / Gateway / HTTPRoute
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -157,6 +160,8 @@ task verify:gateway         # Gateway API CRDs / GatewayClass / cilium-envoy DS
 task verify:eso             # ESO pods + ClusterSecretStore Ready status
 task verify:cert-manager    # cert-manager pods + ClusterIssuers Ready status
 task test:cert-manager      # LE staging DNS-01 smoke test（1-3 分、最大 6 分）
+task verify:dex             # Dex pods / Certificate / Gateway / HTTPRoute 状態
+task test:dex               # OIDC discovery endpoint + TLS cert issuer 確認
 task longhorn:ui            # Longhorn UI を http://localhost:8080 に port-forward（Ctrl-C で停止）
 task verify:longhorn        # Longhorn pods / StorageClass / nodes 状態確認
 task test:longhorn          # PVC → Pod → 書き込み → 読み出しの E2E 確認

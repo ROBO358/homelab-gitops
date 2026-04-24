@@ -36,6 +36,7 @@ infrastructure/
 - [x] External Secrets Operator + 1Password SDK — `ClusterSecretStore` syncing secrets from 1Password `yh-cluster` vault
 - [x] Longhorn — persistent storage on worker NVMe (`/var/mnt/longhorn`) with 3x replication, default StorageClass
 - [x] cert-manager — Let's Encrypt DNS-01 via Cloudflare (`letsencrypt-staging` + `letsencrypt-prod` ClusterIssuer)
+- [x] Dex OIDC bridge — GitHub connector, HTTPS via cert-manager + Cilium Gateway (`dex.yh.k8s.tsuru.run`)
 
 ### Next
-- [ ] RBAC — cluster access control
+- [ ] RBAC/OIDC Phase A-2 — Talos apiServer OIDC flags + kubelogin + human read-only ClusterRoleBinding

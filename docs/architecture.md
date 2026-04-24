@@ -44,6 +44,7 @@
 | Cilium 1.19.2 | ✅ | CNI / kube-proxy 置き換え / 暗号化 / LB / Gateway |
 | Cilium Gateway API | ✅ | HTTP/HTTPS ルーティング（Envoy ベース）|
 | cert-manager 1.16.2 | ✅ | TLS 証明書自動発行（Let's Encrypt DNS-01 / Cloudflare）|
+| Dex v2 | ✅ | GitHub OIDC bridge（`dex.yh.k8s.tsuru.run`）|
 | cloudflared | 🔲 | Cloudflare Tunnel によるインターネット公開 |
 | Longhorn 1.11.1 | ✅ | 永続ストレージ（worker NVMe /var/mnt/longhorn、3x レプリケーション、default StorageClass）|
 | External Secrets Operator | ✅ | 1Password SDK で yh-cluster vault のシークレットを同期 |
@@ -54,6 +55,47 @@
 |---|---|---|
 | Hubble Relay | ✅ | クラスタ内ネットワークフロー収集 |
 | Hubble UI | ✅ | ネットワークフローの可視化 |
+
+---
+
+## OIDC 認証設計
+
+### Phase A-1 ✅ — Dex を HTTPS 公開
+
+```
+LAN ユーザー（ブラウザ / kubelogin）
+  │  HTTPS（LE prod cert、ブラウザ信頼済み）
+  ▼
+Cloudflare DNS: dex.yh.k8s.tsuru.run A 192.168.1.100（proxy OFF）
+  │
+  ▼
+Gateway LB IP 192.168.1.100:443（Cilium L2 Announcements）
+  │  TLS 終端（cert-manager が発行した dex-tls Secret）
+  ▼
+HTTPRoute → Service dex（port 5556）→ Dex Deployment（2 replicas）
+  │  OAuth redirect
+  ▼
+GitHub OAuth
+```
+
+**Dex 構成:**
+- Connector: GitHub（org: ROBO358）
+- Static client: `kubelogin`（public client / PKCE、redirectURI: `localhost:8000/18000`）
+- Storage: kubernetes（CRD）
+- GitHub OAuth App credentials: 1Password `yh-cluster/dex-github-oauth` → ESO ExternalSecret → `dex-github-client` Secret
+
+### Phase A-2 🔲 — kube-apiserver OIDC 設定（yh-talos 側）
+
+```
+kubectl exec（kubelogin）→ Dex → ID Token
+  │
+kube-apiserver（oidc-issuer-url: https://dex.yh.k8s.tsuru.run）
+  │  groups claim: "oidc:ROBO358"
+  ▼
+ClusterRoleBinding: oidc:ROBO358 → view
+```
+
+yh-talos 側の `talconfig.yaml` で `cluster.apiServer.extraArgs` に OIDC フラグを追加し、`talosctl upgrade-k8s` で適用する。
 
 ---
 
@@ -197,10 +239,21 @@ GitRepository (flux-system/flux-system)
         │     │     Namespace + HelmRepository + HelmRelease (ESO v2.3.0)
         │     └── external-secrets-config  →  infrastructure/external-secrets/config/
         │           ClusterSecretStore（1Password SDK、vault: yh-cluster）
-        └── longhorn.yaml              # Kustomization: longhorn
-              └── longhorn  →  infrastructure/longhorn/controller/
-                    Namespace (pod-security: privileged) + HelmRepository + HelmRelease (Longhorn 1.11.1)
-                    defaultDataPath: /var/mnt/longhorn, 3x replicas, default StorageClass
+        ├── longhorn.yaml              # Kustomization: longhorn
+        │     └── longhorn  →  infrastructure/longhorn/controller/
+        │           Namespace (pod-security: privileged) + HelmRepository + HelmRelease (Longhorn 1.11.1)
+        │           defaultDataPath: /var/mnt/longhorn, 3x replicas, default StorageClass
+        ├── cert-manager.yaml          # Kustomization: cert-manager + cert-manager-config
+        │     ├── cert-manager      →  infrastructure/cert-manager/controller/
+        │     │     Namespace + HelmRepository + HelmRelease (cert-manager v1.16.2)
+        │     └── cert-manager-config  →  infrastructure/cert-manager/config/
+        │           ExternalSecret（Cloudflare API Token）+ ClusterIssuer x2 (staging/prod)
+        └── dex.yaml                   # Kustomization: dex + dex-config (dependsOn: cert-manager-config + external-secrets-config)
+              ├── dex              →  infrastructure/dex/controller/
+              │     Namespace + HelmRepository + HelmRelease (Dex v2.44.0 / chart 0.24.0)
+              └── dex-config       →  infrastructure/dex/config/
+                    ExternalSecret（GitHub OAuth client）+ Certificate（LE prod）
+                    + Gateway（dex-gateway、LB IP 192.168.1.100）+ HTTPRoute
 ```
 
 ### cloudflared 導入後 🔲
