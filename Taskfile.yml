@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   EXPECTED_CONTEXT: admin@yh-cluster
@@ -368,12 +368,14 @@ tasks:
           --exec-arg=--oidc-client-id=kubelogin \
           --exec-arg=--oidc-extra-scope=email \
           --exec-arg=--oidc-extra-scope=profile \
-          --exec-arg=--oidc-extra-scope=groups
+          --exec-arg=--oidc-extra-scope=groups \
+          --exec-arg=--grant-type=authcode-keyboard
       - |
         kubectl config set-context oidc@yh-cluster \
           --cluster=yh-cluster \
           --user=oidc
-      - echo "Switch with: kubectl config use-context oidc@yh-cluster"
+      - |
+        echo "Switch with: kubectl config use-context oidc@yh-cluster"
 
   verify:oidc:
     desc: "Show OIDC ClusterRoleBindings and kube-apiserver OIDC flags"
