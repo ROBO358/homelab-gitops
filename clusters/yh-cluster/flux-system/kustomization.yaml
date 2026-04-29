@@ -4,6 +4,7 @@ resources:
 - gotk-components.yaml
 - gotk-sync.yaml
 - flux-system-root.yaml
+- helm-controller-admin.yaml
 patches:
   - target:
       kind: Deployment
