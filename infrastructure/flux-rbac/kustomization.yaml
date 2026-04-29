@@ -5,3 +5,5 @@ resources:
   - clusterrolebinding-impersonator.yaml
   - applier-serviceaccounts.yaml
   - applier-clusterrolebindings.yaml
+  - scoped-clusterroles.yaml
+  - scoped-clusterrolebindings.yaml

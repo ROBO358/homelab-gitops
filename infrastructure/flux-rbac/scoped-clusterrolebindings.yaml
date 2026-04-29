@@ -1,0 +1,89 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-rbac-humans-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-rbac-humans
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-rbac-humans-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-gateway-api-crds-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-gateway-api-crds
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-gateway-api-crds-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-cilium-config-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-cilium-config
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-cilium-config-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-external-secrets-config-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-external-secrets-config
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-external-secrets-config-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-cert-manager-config-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-cert-manager-config
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-cert-manager-config-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-dex-config-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-dex-config
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-dex-config-role
