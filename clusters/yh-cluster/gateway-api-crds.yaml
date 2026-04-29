@@ -8,6 +8,9 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/gateway-api-crds
   prune: true
+  serviceAccountName: flux-gateway-api-crds
+  dependsOn:
+    - name: flux-rbac
   sourceRef:
     kind: GitRepository
     name: flux-system

@@ -8,7 +8,9 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/dex/controller
   prune: true
+  serviceAccountName: flux-dex
   dependsOn:
+    - name: flux-rbac
     - name: external-secrets-config   # ExternalSecret が ClusterSecretStore を参照するため
   sourceRef:
     kind: GitRepository
@@ -26,7 +28,9 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/dex/config
   prune: true
+  serviceAccountName: flux-dex-config
   dependsOn:
+    - name: flux-rbac
     - name: dex
     - name: cert-manager-config       # ClusterIssuer Ready 後
   sourceRef:

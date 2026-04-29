@@ -1,18 +1,16 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: longhorn
+  name: flux-rbac
   namespace: flux-system
 spec:
   interval: 10m
   retryInterval: 1m
-  path: ./infrastructure/longhorn/controller
+  path: ./infrastructure/flux-rbac
   prune: true
-  serviceAccountName: flux-longhorn
-  dependsOn:
-    - name: flux-rbac
   sourceRef:
     kind: GitRepository
     name: flux-system
   wait: true
-  timeout: 10m
+  timeout: 5m
+  # serviceAccountName 不指定 → --default-service-account=flux-system-root が適用される

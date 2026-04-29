@@ -44,10 +44,12 @@ clusters/
     flux-system/         # Flux 本体のマニフェスト（flux bootstrap が生成）
       gotk-components.yaml   # Flux コンポーネント一式（直接編集しない）
       gotk-sync.yaml         # GitRepository + flux-system Kustomization（直接編集しない）
-      kustomization.yaml
+      kustomization.yaml     # resources + patches 追記は OK（gotk-*.yaml は編集しない）
+      flux-system-root.yaml  # flux-system-root SA + binding（bootstrap、flux-system root が管理）
     cilium.yaml          # Cilium の Flux Kustomization 定義
     gateway-api-crds.yaml  # Gateway API CRDs の Flux Kustomization 定義
     external-secrets.yaml  # ESO の Flux Kustomization 定義
+    flux-rbac.yaml         # Flux per-K SA + impersonator RBAC の Kustomization
 infrastructure/
   cilium/                # CNI（ブートストラップは yh-talos 側の inlineManifests）
     controller/          # HelmRepository / HelmRelease
@@ -66,6 +68,8 @@ infrastructure/
     config/              # ExternalSecret（GitHub OAuth client）/ Certificate / Gateway / HTTPRoute
   rbac-humans/           # 人間ユーザー向け RBAC（OIDC subject → ClusterRole binding）
                          # ClusterRoleBinding: ROBO358(preferred_username) → view
+  flux-rbac/             # Flux RBAC Phase B（per-Kustomization SA + impersonator）
+                         # ClusterRole flux-impersonator / flux-<name> SA x11 / cluster-admin binding
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -73,9 +77,54 @@ infrastructure/
 ## 重要な規則
 
 - `clusters/yh-cluster/flux-system/` 以下の `gotk-*.yaml` は **flux が生成するため直接編集しない**
+  - ただし `kustomization.yaml` の `resources` / `patches` セクションは編集 OK（Deployment args 追加、Kustomization SA パッチ等）
 - 新しいインフラを追加するときは `infrastructure/<name>/` にマニフェストを置き、`clusters/yh-cluster/<name>.yaml` に Kustomization を追加する
 - `dependsOn` で依存関係を明示する（例: cilium-config は cilium に依存）
 - `prune: true` がデフォルト。削除したリソースは自動で Kubernetes からも消える
+
+### 新しい Flux Kustomization を追加するときの手順（Phase B 以降）
+
+RBAC Phase B 導入後、新しい Kustomization を追加する際は以下の手順が必要:
+
+1. `infrastructure/flux-rbac/applier-serviceaccounts.yaml` に SA を追加:
+   ```yaml
+   apiVersion: v1
+   kind: ServiceAccount
+   metadata:
+     name: flux-<component-name>
+     namespace: flux-system
+     labels:
+       app.kubernetes.io/part-of: flux-rbac
+   ```
+
+2. `infrastructure/flux-rbac/applier-clusterrolebindings.yaml` に ClusterRoleBinding を追加:
+   ```yaml
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRoleBinding
+   metadata:
+     name: flux-<component-name>-applier
+     labels:
+       app.kubernetes.io/part-of: flux-rbac
+   subjects:
+     - kind: ServiceAccount
+       name: flux-<component-name>
+       namespace: flux-system
+   roleRef:
+     apiGroup: rbac.authorization.k8s.io
+     kind: ClusterRole
+     name: cluster-admin
+   ```
+
+3. `clusters/yh-cluster/<component>.yaml` の Kustomization に設定を追加:
+   ```yaml
+   spec:
+     serviceAccountName: flux-<component-name>
+     dependsOn:
+       - name: flux-rbac
+       # ... 他の依存関係
+   ```
+
+4. `flux-system-root.yaml` は flux-system root Kustomization が直接管理する bootstrap SA。flux-rbac 自体と root Kustomization が使用する。新しいコンポーネントはこれを使わず、専用 SA を作成する。
 
 ### Cilium HelmRelease 変更後の手動再起動
 
@@ -296,4 +345,5 @@ Dex の issuer URL や static client ID を変更する場合は yh-talos 側の
 1. `infrastructure/<component>/controller/` に HelmRepository + HelmRelease を作成
 2. `infrastructure/<component>/config/` に設定マニフェストを作成（必要な場合）
 3. `clusters/yh-cluster/<component>.yaml` に Flux Kustomization を追加
-4. `git add && git commit && git push` → Flux が自動で適用
+4. `infrastructure/flux-rbac/` に SA + ClusterRoleBinding を追加（上記「新しい Flux Kustomization を追加するときの手順」参照）
+5. `git add && git commit && git push` → Flux が自動で適用

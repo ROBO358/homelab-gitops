@@ -8,6 +8,9 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/rbac-humans
   prune: true
+  serviceAccountName: flux-rbac-humans
+  dependsOn:
+    - name: flux-rbac
   sourceRef:
     kind: GitRepository
     name: flux-system

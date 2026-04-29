@@ -38,6 +38,8 @@ infrastructure/
 - [x] cert-manager — Let's Encrypt DNS-01 via Cloudflare (`letsencrypt-staging` + `letsencrypt-prod` ClusterIssuer)
 - [x] Dex OIDC bridge — GitHub connector, HTTPS via cert-manager + Cilium Gateway (`dex.yh.k8s.tsuru.run`)
 - [x] RBAC/OIDC Phase A-2 — kube-apiserver OIDC flags (yh-talos) + kubelogin + `ROBO358 → view` ClusterRoleBinding
+- [x] RBAC/OIDC Phase B — Flux controller `cluster-admin` 剥離 / per-Kustomization SA + impersonation
 
 ### Next
-- [ ] Phase B — Flux controller `cluster-admin` 剥離 / namespace-scoped impersonation
+- [ ] Phase B-Next — 個別 SA の権限縮小（dex 等を namespace-scoped Role に絞る）
+- [ ] Phase C — Break-Glass kubeconfig 1Password 退避 / ローカル admin context 削除

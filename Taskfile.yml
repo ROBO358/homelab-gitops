@@ -571,3 +571,31 @@ tasks:
           exit 1
         fi
       - defer: kubectl delete deployment,svc nginx-lbtest --ignore-not-found
+
+  # ────────────────────────────────
+  # flux-rbac: RBAC Phase B verification
+  # ────────────────────────────────
+
+  verify:flux-rbac:
+    desc: "Flux SA + ClusterRoleBinding 一覧確認"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get serviceaccount -n flux-system -l app.kubernetes.io/part-of=flux-rbac
+      - kubectl get clusterrolebinding -l app.kubernetes.io/part-of=flux-rbac
+      - kubectl get kustomization -n flux-system -o custom-columns=NAME:.metadata.name,SA:.spec.serviceAccountName
+      - kubectl auth can-i impersonate serviceaccount --as=system:serviceaccount:flux-system:kustomize-controller -n flux-system
+
+  test:flux-rbac:
+    desc: "controller が直接 cluster-admin を持たないことを確認（PR2 後）"
+    deps: [ctx:check]
+    cmds:
+      - |
+        if kubectl auth can-i create clusterrole --as=system:serviceaccount:flux-system:kustomize-controller 2>&1 | grep -q yes; then
+          echo "FAIL: kustomize-controller still has cluster-admin"
+          exit 1
+        fi
+        if ! kubectl auth can-i impersonate serviceaccount --as=system:serviceaccount:flux-system:kustomize-controller -n flux-system 2>&1 | grep -q yes; then
+          echo "FAIL: kustomize-controller cannot impersonate"
+          exit 1
+        fi
+        echo "PASS: kustomize-controller does NOT have direct cluster-admin, but CAN impersonate"

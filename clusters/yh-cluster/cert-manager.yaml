@@ -8,6 +8,9 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/cert-manager/controller
   prune: true
+  serviceAccountName: flux-cert-manager
+  dependsOn:
+    - name: flux-rbac
   sourceRef:
     kind: GitRepository
     name: flux-system
@@ -24,7 +27,9 @@ spec:
   retryInterval: 1m
   path: ./infrastructure/cert-manager/config
   prune: true
+  serviceAccountName: flux-cert-manager-config
   dependsOn:
+    - name: flux-rbac
     - name: cert-manager
     - name: external-secrets-config
   sourceRef:

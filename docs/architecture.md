@@ -55,6 +55,10 @@
 |---|---|---|
 | Hubble Relay | ✅ | クラスタ内ネットワークフロー収集 |
 | Hubble UI | ✅ | ネットワークフローの可視化 |
+| kube-prometheus-stack | 🔲 | 全メトリクス収集・Grafana・Alertmanager |
+| Grafana Cloud | 🔲 | SLI メトリクス長期保存・外部ダッシュボード |
+| Healthchecks.io | 🔲 | クラスタ全断の死活検知（Dead man's switch）|
+| Cloudflare Workers | 🔲 | 主要エンドポイントの外形監視 |
 
 ---
 
@@ -319,6 +323,150 @@ Flux 自身の GitHub 認証情報（deploy key）は `flux bootstrap` が生成
 
 ---
 
+## 監視アーキテクチャ 🔲
+
+### 設計方針
+
+クラスタが丸ごと落ちると In-Cluster の監視も道連れになるため、**3 層に分けて単一障害点を排除**する。
+
+| 層 | コンポーネント | 役割 | クラスタ全断時 |
+|---|---|---|---|
+| In-Cluster | kube-prometheus-stack | 全メトリクス収集・詳細分析・即時アラート | 共倒れ |
+| Cloud | Grafana Cloud（無料枠） | SLI 長期保存・外部ダッシュボード | 参照可能 |
+| Blackbox | Healthchecks.io | heartbeat 途絶でクラスタ全断を検知 | 通知発火 |
+| Blackbox | Cloudflare Workers | エンドポイント外形監視・Tunnel 死活確認 | 通知発火 |
+
+### 全体構成図
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  yh-cluster (In-Cluster)             │
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │ kube-prometheus-stack                         │   │
+│  │                                               │   │
+│  │  Prometheus                                   │   │
+│  │  ├── node-exporter           5s scrape        │   │
+│  │  ├── kube-state-metrics     15s scrape        │   │
+│  │  ├── cAdvisor               15s scrape        │   │
+│  │  ├── Cilium / CoreDNS       15s scrape        │   │
+│  │  └── ServiceMonitor (apps)  15s scrape        │   │
+│  │       保持期間: 7 日                           │   │
+│  │                                               │   │
+│  │  Recording Rules                              │   │
+│  │  └── 生メトリクス → sli:* に事前集計          │   │
+│  │                                               │   │
+│  │  Grafana（詳細ダッシュボード）                 │   │
+│  │  └── 開発者・運用者向け日常分析                │   │
+│  │                                               │   │
+│  │  Alertmanager                                 │   │
+│  │  ├── Warning / Critical → Slack               │   │
+│  │  └── Watchdog heartbeat ──────────────────────┼──→ Healthchecks.io
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  CiliumNetworkPolicy                                 │
+│  └── /metrics は Prometheus SA からのみ許可          │
+│                │                                     │
+│                │ remoteWrite (sli:* のみ通過)        │
+└────────────────┼─────────────────────────────────────┘
+                 ▼
+        Grafana Cloud（無料枠）
+        ├── SLI メトリクス長期保存（14 日）
+        ├── クラスタ健全性ダッシュボード
+        └── クラスタ停止時も参照可能
+
+Cloudflare Workers Cron Triggers
+└── 主要エンドポイントを外部から定期 probe
+    └── cloudflared Tunnel の死活も兼ねる
+```
+
+### メトリクスのフロー
+
+```
+全メトリクス（生）
+  └── In-Cluster Prometheus のみ保持（7 日）
+
+Recording Rules で事前集計
+  ├── sli:http_error_rate:ratio_rate5m
+  ├── sli:node_availability:bool
+  ├── sli:pod_restart_rate:rate5m
+  ├── sli:apiserver_availability:ratio_rate5m
+  └── sli:certificate_expiry_days       ← cert-manager メトリクスから
+
+sli:* のみ remoteWrite → Grafana Cloud（14 日保持）
+```
+
+### Scrape 設定
+
+| ターゲット | scrape_interval | 備考 |
+|---|---|---|
+| node-exporter | 5s | ノードリソースは高頻度で収集 |
+| kube-state-metrics | 15s | K8s オブジェクト状態 |
+| cAdvisor | 15s | コンテナリソース |
+| Cilium / CoreDNS | 15s | インフラコンポーネント |
+| ServiceMonitor (apps) | 15s | アプリメトリクス |
+
+### アラート設計
+
+```
+In-Cluster Alertmanager
+  ├── NodeNotReady / DiskPressure / MemoryPressure
+  ├── PodCrashLooping / OOMKilled
+  ├── 証明書有効期限 7 日前（certmanager_certificate_expiration）
+  ├── リソース枯渇（CPU / Memory 使用率閾値超過）
+  └── Watchdog → Healthchecks.io（1 分ごと heartbeat）
+
+Healthchecks.io
+  └── heartbeat 途絶（クラスタ全断）→ メール通知
+
+Cloudflare Workers
+  └── エンドポイント無応答（Tunnel 障害・Gateway 障害）→ Webhook 通知
+```
+
+### TLS 証明書監視の方針
+
+| 証明書の種類 | 監視方法 | 理由 |
+|---|---|---|
+| LAN 向け（cert-manager / Let's Encrypt）| Prometheus（`certmanager_certificate_expiration`）| Cloudflare が外部 TLS を終端するため外形監視では見えない |
+| 外部向け（Cloudflare Edge）| Cloudflare ダッシュボード側で管理 | クラスタ管理外 |
+
+### シークレット管理（既存パターンと統一）
+
+```
+1Password（yh-cluster vault）
+  ├── grafana-cloud-credentials   → ESO → Secret（remoteWrite 認証）
+  ├── grafana-admin-password      → ESO → Secret（in-cluster Grafana 管理者）
+  ├── healthchecks-url            → ESO → Secret（Alertmanager Watchdog webhook）
+  └── slack-webhook-url           → ESO → Secret（Alertmanager 通知先）
+```
+
+### GitOps 配置
+
+```
+infrastructure/
+  monitoring/
+    controller/
+      namespace.yaml
+      helmrepository.yaml           # prometheus-community
+      helmrelease.yaml              # kube-prometheus-stack
+      kustomization.yaml            #   scrape interval / remoteWrite / Alertmanager 設定込み
+    config/
+      prometheusrule-sli.yaml       # Recording Rules + アラート定義
+      externalsecret-grafana-cloud.yaml
+      externalsecret-grafana-admin.yaml
+      externalsecret-healthchecks.yaml
+      externalsecret-slack.yaml
+      certificate.yaml              # grafana.yh.k8s.tsuru.run TLS
+      gateway.yaml
+      httproute.yaml
+      kustomization.yaml
+
+clusters/yh-cluster/
+  monitoring.yaml                   # dependsOn: longhorn / external-secrets-config / cert-manager-config
+```
+
+---
+
 ## Cilium bootstrap / Flux 引き継ぎパターン ✅
 
 Cilium は **yh-talos** 側で Talos `inlineManifests` によりブートストラップされる。
@@ -336,3 +484,70 @@ homelab-gitops (Flux)
 ```
 
 Cilium バージョンは **両リポジトリの Taskfile.yml `CILIUM_VERSION` を必ず一致させる**。
+
+---
+
+## Flux RBAC 構成（Phase B）✅
+
+### 概要
+
+kustomize-controller / helm-controller は **impersonation 経由**でのみ Kubernetes リソースを操作する。
+controller 自身の SA には `impersonate` + Flux CRD 権限のみを付与し、`cluster-admin` は保持しない。
+
+### Impersonation フロー
+
+```
+kustomize-controller pod (SA: kustomize-controller)
+  ├── Bindings
+  │     flux-impersonator ClusterRoleBinding → flux-impersonator ClusterRole
+  │       rules: impersonate users/groups/serviceaccounts
+  │     crd-controller-flux-system ClusterRoleBinding (Flux 既定)
+  │       rules: Flux CRD CRUD
+  │
+  ├── Kustomization に spec.serviceAccountName が設定されている場合
+  │     → controller は指定 SA を impersonate して API 操作
+  │     例: cilium Kustomization → flux-cilium SA (cluster-admin via flux-cilium-applier)
+  │
+  └── spec.serviceAccountName が未設定の場合
+        → --default-service-account=flux-system-root にフォールバック
+        例: flux-rbac Kustomization → flux-system-root SA (cluster-admin via flux-system-root-applier)
+```
+
+### per-Kustomization SA 対応表
+
+| Kustomization | SA 名 | ClusterRoleBinding |
+|---|---|---|
+| flux-system (root) | flux-system-root | flux-system-root-applier → cluster-admin |
+| flux-rbac | (--default → flux-system-root) | 同上 |
+| gateway-api-crds | flux-gateway-api-crds | flux-gateway-api-crds-applier → cluster-admin |
+| cilium | flux-cilium | flux-cilium-applier → cluster-admin |
+| cilium-config | flux-cilium-config | flux-cilium-config-applier → cluster-admin |
+| external-secrets | flux-external-secrets | flux-external-secrets-applier → cluster-admin |
+| external-secrets-config | flux-external-secrets-config | flux-external-secrets-config-applier → cluster-admin |
+| longhorn | flux-longhorn | flux-longhorn-applier → cluster-admin |
+| cert-manager | flux-cert-manager | flux-cert-manager-applier → cluster-admin |
+| cert-manager-config | flux-cert-manager-config | flux-cert-manager-config-applier → cluster-admin |
+| dex | flux-dex | flux-dex-applier → cluster-admin |
+| dex-config | flux-dex-config | flux-dex-config-applier → cluster-admin |
+| rbac-humans | flux-rbac-humans | flux-rbac-humans-applier → cluster-admin |
+
+全 SA は `flux-system` namespace に配置し、label `app.kubernetes.io/part-of: flux-rbac` で識別する。
+
+### Bootstrap SA の特殊処理
+
+`flux-system-root` SA は `clusters/yh-cluster/flux-system/kustomization.yaml` の `resources` に直接追加した `flux-system-root.yaml` で管理する。`flux-rbac` Kustomization 管理下に置くと「flux-rbac 自身が必要とする SA を flux-rbac が作る」という chicken-and-egg が発生するため。
+
+### controller フラグ（kustomize-controller / helm-controller 共通）
+
+| フラグ | 値 | 目的 |
+|---|---|---|
+| `--no-cross-namespace-refs=true` | true | Kustomization / HelmRelease が自分の NS 外の sourceRef を参照することを禁止 |
+| `--default-service-account` | flux-system-root | serviceAccountName 未設定の Kustomization に適用するデフォルト SA |
+
+これらは `clusters/yh-cluster/flux-system/kustomization.yaml` の `patches` セクションで Deployment に JSON Patch 追加する。`flux bootstrap` で `gotk-*.yaml` が再生成されても `kustomization.yaml` の patches は保持される。
+
+### security gain
+
+- **audit log**: `system:serviceaccount:flux-system:flux-<name>` で操作元 Kustomization を識別可能
+- **blast radius 縮小**: controller pod の token が漏洩しても `impersonate` 権のみ。cluster-admin 直接操作は不可
+- **将来の tenant 設計基盤**: SA ごとに Role を絞ることで namespace-scoped 権限への移行が容易
