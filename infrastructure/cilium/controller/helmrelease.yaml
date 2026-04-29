@@ -5,6 +5,7 @@ metadata:
   namespace: kube-system
 spec:
   interval: 10m
+  serviceAccountName: helm-cilium
   # releaseName must match the bootstrap release name so Flux adopts existing resources
   # (Helm 3.2+ PR #7649: resources with meta.helm.sh/release-name=cilium are adopted)
   releaseName: cilium

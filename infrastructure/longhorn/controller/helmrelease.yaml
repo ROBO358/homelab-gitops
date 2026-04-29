@@ -5,6 +5,7 @@ metadata:
   namespace: longhorn-system
 spec:
   interval: 10m
+  serviceAccountName: helm-longhorn
   releaseName: longhorn
   targetNamespace: longhorn-system
   chart:

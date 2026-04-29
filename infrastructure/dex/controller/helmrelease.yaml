@@ -5,6 +5,7 @@ metadata:
   namespace: dex
 spec:
   interval: 10m
+  serviceAccountName: helm-dex
   releaseName: dex
   targetNamespace: dex
   chart:

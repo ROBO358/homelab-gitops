@@ -5,6 +5,7 @@ metadata:
   namespace: external-secrets
 spec:
   interval: 10m
+  serviceAccountName: helm-external-secrets
   releaseName: external-secrets
   targetNamespace: external-secrets
   chart:
