@@ -24,9 +24,6 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/args/-
         value: --no-cross-namespace-refs=true
-      - op: add
-        path: /spec/template/spec/containers/0/args/-
-        value: --default-service-account=flux-system-root
   - target:
       group: kustomize.toolkit.fluxcd.io
       version: v1
