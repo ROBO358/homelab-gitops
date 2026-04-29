@@ -487,7 +487,7 @@ Cilium バージョンは **両リポジトリの Taskfile.yml `CILIUM_VERSION` 
 
 ---
 
-## Flux RBAC 構成（Phase B）✅
+## Flux RBAC 構成（Phase B + B-Next/1）✅
 
 ### 概要
 
@@ -537,17 +537,48 @@ kustomize-controller pod (SA: kustomize-controller)
 
 `flux-system-root` SA は `clusters/yh-cluster/flux-system/kustomization.yaml` の `resources` に直接追加した `flux-system-root.yaml` で管理する。`flux-rbac` Kustomization 管理下に置くと「flux-rbac 自身が必要とする SA を flux-rbac が作る」という chicken-and-egg が発生するため。
 
-### controller フラグ（kustomize-controller / helm-controller 共通）
+### per-HelmRelease SA 対応表（Phase B-Next/1）
 
-| フラグ | 値 | 目的 |
-|---|---|---|
-| `--no-cross-namespace-refs=true` | true | Kustomization / HelmRelease が自分の NS 外の sourceRef を参照することを禁止 |
-| `--default-service-account` | flux-system-root | serviceAccountName 未設定の Kustomization に適用するデフォルト SA |
+helm-controller は各 HelmRelease の `spec.serviceAccountName` を impersonate して Helm 操作を行う。SA は HelmRelease と**同じ namespace** に配置する（helm-controller の SA 解決は HR の namespace を基準にするため）。
+
+| HelmRelease | namespace | SA 名 | ClusterRoleBinding |
+|---|---|---|---|
+| cilium | kube-system | helm-cilium | helm-cilium-applier → cluster-admin |
+| cert-manager | cert-manager | helm-cert-manager | helm-cert-manager-applier → cluster-admin |
+| dex | dex | helm-dex | helm-dex-applier → cluster-admin |
+| external-secrets | external-secrets | helm-external-secrets | helm-external-secrets-applier → cluster-admin |
+| longhorn | longhorn-system | helm-longhorn | helm-longhorn-applier → cluster-admin |
+
+各 SA は `infrastructure/<chart>/controller/sa.yaml` で定義し、component の controller Kustomization が管理する（flux-rbac 管理外）。理由: component 自身が namespace を作成するため、flux-rbac 実行時点では namespace が存在せず SA 作成が失敗する。
+
+### Impersonation フロー（helm-controller）
+
+```
+helm-controller pod (SA: helm-controller)
+  ├── Bindings
+  │     flux-impersonator ClusterRoleBinding → flux-impersonator ClusterRole
+  │       rules: impersonate users/groups/serviceaccounts
+  │     crd-controller-flux-system ClusterRoleBinding (Flux 既定)
+  │       rules: Flux CRD CRUD
+  │
+  └── HelmRelease に spec.serviceAccountName が設定されている場合
+        → controller は指定 SA を impersonate して Helm install/upgrade/rollback
+        例: cilium HR → helm-cilium SA (cluster-admin via helm-cilium-applier, kube-system NS)
+```
+
+**注意:** `--default-service-account` は kustomize-controller のみに設定（helm-controller には設定しない）。helm-controller は SA を HR 自身の namespace で解決するため、`--default-service-account` を設定すると全 HR namespace に同名 SA が必要になる。
+
+### controller フラグ
+
+| フラグ | 対象 | 値 | 目的 |
+|---|---|---|---|
+| `--no-cross-namespace-refs=true` | kustomize-controller, helm-controller | true | sourceRef がクロス NS 参照することを禁止 |
+| `--default-service-account` | kustomize-controller のみ | flux-system-root | serviceAccountName 未設定の Kustomization に適用するデフォルト SA |
 
 これらは `clusters/yh-cluster/flux-system/kustomization.yaml` の `patches` セクションで Deployment に JSON Patch 追加する。`flux bootstrap` で `gotk-*.yaml` が再生成されても `kustomization.yaml` の patches は保持される。
 
 ### security gain
 
-- **audit log**: `system:serviceaccount:flux-system:flux-<name>` で操作元 Kustomization を識別可能
+- **audit log**: kustomize-controller は `system:serviceaccount:flux-system:flux-<name>`、helm-controller は `system:serviceaccount:<ns>:helm-<chart>` で操作元を識別可能
 - **blast radius 縮小**: controller pod の token が漏洩しても `impersonate` 権のみ。cluster-admin 直接操作は不可
 - **将来の tenant 設計基盤**: SA ごとに Role を絞ることで namespace-scoped 権限への移行が容易

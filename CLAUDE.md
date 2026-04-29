@@ -68,8 +68,13 @@ infrastructure/
     config/              # ExternalSecret（GitHub OAuth client）/ Certificate / Gateway / HTTPRoute
   rbac-humans/           # 人間ユーザー向け RBAC（OIDC subject → ClusterRole binding）
                          # ClusterRoleBinding: ROBO358(preferred_username) → view
-  flux-rbac/             # Flux RBAC Phase B（per-Kustomization SA + impersonator）
+  flux-rbac/             # Flux RBAC（per-Kustomization SA + impersonator）
                          # ClusterRole flux-impersonator / flux-<name> SA x11 / cluster-admin binding
+  cilium/controller/sa.yaml          # helm-cilium SA + binding（kube-system、helm-controller が impersonate）
+  cert-manager/controller/sa.yaml    # helm-cert-manager SA + binding（cert-manager）
+  dex/controller/sa.yaml             # helm-dex SA + binding（dex）
+  external-secrets/controller/sa.yaml # helm-external-secrets SA + binding（external-secrets）
+  longhorn/controller/sa.yaml        # helm-longhorn SA + binding（longhorn-system）
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
@@ -125,6 +130,58 @@ RBAC Phase B 導入後、新しい Kustomization を追加する際は以下の�
    ```
 
 4. `flux-system-root.yaml` は flux-system root Kustomization が直接管理する bootstrap SA。flux-rbac 自体と root Kustomization が使用する。新しいコンポーネントはこれを使わず、専用 SA を作成する。
+
+### 新しい HelmRelease を追加するときの手順（Phase B-Next/1 以降）
+
+RBAC Phase B-Next/1 導入後、helm-controller は per-HelmRelease SA を impersonate する。新しい HelmRelease を追加する際は以下の手順が必要:
+
+1. `infrastructure/<component>/controller/sa.yaml` を作成（SA は HelmRelease と**同じ namespace**に配置）:
+   ```yaml
+   apiVersion: v1
+   kind: ServiceAccount
+   metadata:
+     name: helm-<chart>
+     namespace: <hr-namespace>
+     labels:
+       app.kubernetes.io/part-of: flux-rbac
+   ---
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRoleBinding
+   metadata:
+     name: helm-<chart>-applier
+     labels:
+       app.kubernetes.io/part-of: flux-rbac
+   subjects:
+     - kind: ServiceAccount
+       name: helm-<chart>
+       namespace: <hr-namespace>
+   roleRef:
+     apiGroup: rbac.authorization.k8s.io
+     kind: ClusterRole
+     name: cluster-admin
+   ```
+
+2. `infrastructure/<component>/controller/kustomization.yaml` の resources に `sa.yaml` を追加（`helmrelease.yaml` より前に列挙）:
+   ```yaml
+   resources:
+     - namespace.yaml
+     - helmrepository.yaml
+     - sa.yaml         # ← helmrelease.yaml より前
+     - helmrelease.yaml
+   ```
+
+3. `infrastructure/<component>/controller/helmrelease.yaml` の spec に `serviceAccountName` を設定:
+   ```yaml
+   spec:
+     interval: 10m
+     serviceAccountName: helm-<chart>   # ← 必須（これがないと reconcile 失敗）
+     releaseName: <chart>
+     ...
+   ```
+
+**重要:** `serviceAccountName` を設定しないと、Phase B-Next/1 以降は helm-controller が permissions なしで動き reconcile が失敗する。必ず設定すること。
+
+**SA の配置先注意:** SA は `infrastructure/flux-rbac/` ではなく各 component の `controller/` に置く。理由: flux-rbac が先に実行されるが、対象 namespace はコンポーネント自体が作成するため、flux-rbac 実行時には namespace が存在せず SA 作成が失敗する。
 
 ### Cilium HelmRelease 変更後の手動再起動
 
@@ -343,7 +400,9 @@ Dex の issuer URL や static client ID を変更する場合は yh-talos 側の
 ## インフラ追加の手順
 
 1. `infrastructure/<component>/controller/` に HelmRepository + HelmRelease を作成
-2. `infrastructure/<component>/config/` に設定マニフェストを作成（必要な場合）
-3. `clusters/yh-cluster/<component>.yaml` に Flux Kustomization を追加
-4. `infrastructure/flux-rbac/` に SA + ClusterRoleBinding を追加（上記「新しい Flux Kustomization を追加するときの手順」参照）
-5. `git add && git commit && git push` → Flux が自動で適用
+2. `infrastructure/<component>/controller/sa.yaml` に helm-controller 用 SA + ClusterRoleBinding を作成（上記「新しい HelmRelease を追加するときの手順」参照）
+3. HelmRelease に `spec.serviceAccountName: helm-<chart>` を設定
+4. `infrastructure/<component>/config/` に設定マニフェストを作成（必要な場合）
+5. `clusters/yh-cluster/<component>.yaml` に Flux Kustomization を追加
+6. `infrastructure/flux-rbac/` に kustomize-controller 用 SA + ClusterRoleBinding を追加（上記「新しい Flux Kustomization を追加するときの手順」参照）
+7. `git add && git commit && git push` → Flux が自動で適用

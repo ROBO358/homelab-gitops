@@ -39,7 +39,8 @@ infrastructure/
 - [x] Dex OIDC bridge — GitHub connector, HTTPS via cert-manager + Cilium Gateway (`dex.yh.k8s.tsuru.run`)
 - [x] RBAC/OIDC Phase A-2 — kube-apiserver OIDC flags (yh-talos) + kubelogin + `ROBO358 → view` ClusterRoleBinding
 - [x] RBAC/OIDC Phase B — Flux controller `cluster-admin` 剥離 / per-Kustomization SA + impersonation
+- [x] RBAC/OIDC Phase B-Next/1 — helm-controller `cluster-admin` 剥離 / per-HelmRelease SA + impersonation
 
 ### Next
-- [ ] Phase B-Next — 個別 SA の権限縮小（dex 等を namespace-scoped Role に絞る）
+- [ ] Phase B-Next/2 — 個別 SA の権限縮小（各 SA を namespace-scoped Role に絞る）
 - [ ] Phase C — Break-Glass kubeconfig 1Password 退避 / ローカル admin context 削除
