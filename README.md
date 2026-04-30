@@ -40,7 +40,8 @@ infrastructure/
 - [x] RBAC/OIDC Phase A-2 — kube-apiserver OIDC flags (yh-talos) + kubelogin + `ROBO358 → view` ClusterRoleBinding
 - [x] RBAC/OIDC Phase B — Flux controller `cluster-admin` 剥離 / per-Kustomization SA + impersonation
 - [x] RBAC/OIDC Phase B-Next/1 — helm-controller `cluster-admin` 剥離 / per-HelmRelease SA + impersonation
+- [x] RBAC/OIDC Phase B-Next/2 — config SA + helm-dex の権限縮小（scoped ClusterRole + `helm-dex`: dex ns admin + 限定 cluster RBAC）
 
 ### Next
-- [ ] Phase B-Next/2 — 個別 SA の権限縮小（各 SA を namespace-scoped Role に絞る）
+- [ ] Phase B-Next/3 — controller SA・helm chart SA の権限縮小（helm-cilium / helm-cert-manager 等）
 - [ ] Phase C — Break-Glass kubeconfig 1Password 退避 / ローカル admin context 削除
