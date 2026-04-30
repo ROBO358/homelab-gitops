@@ -20,3 +20,50 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: cluster-admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-cert-manager-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-cert-manager
+    namespace: cert-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helm-cert-manager-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: helm-cert-manager-ns-admin
+  namespace: cert-manager
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-cert-manager
+    namespace: cert-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: helm-cert-manager-kube-system-admin
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-cert-manager
+    namespace: cert-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin

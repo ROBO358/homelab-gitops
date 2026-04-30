@@ -166,3 +166,50 @@ rules:
   - apiGroups: [generators.external-secrets.io]
     resources: ["*"]
     verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helm-cert-manager-role
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+rules:
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles, clusterrolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames:
+      - cert-manager-cainjector
+      - cert-manager-cluster-view
+      - cert-manager-controller-approve:cert-manager-io
+      - cert-manager-controller-certificates
+      - cert-manager-controller-certificatesigningrequests
+      - cert-manager-controller-challenges
+      - cert-manager-controller-clusterissuers
+      - cert-manager-controller-ingress-shim
+      - cert-manager-controller-issuers
+      - cert-manager-controller-orders
+      - cert-manager-edit
+      - cert-manager-view
+      - cert-manager-webhook:subjectaccessreviews
+      - admin
+    verbs: [bind]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    verbs: [escalate]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete, escalate, bind]
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingwebhookconfigurations, mutatingwebhookconfigurations]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [cert-manager.io]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [acme.cert-manager.io]
+    resources: ["*"]
+    verbs: ["*"]
