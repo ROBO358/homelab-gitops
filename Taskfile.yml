@@ -394,15 +394,12 @@ tasks:
     cmds:
       - |
         current=$(kubectl config current-context)
-        if [ "$current" != "oidc@yh-cluster" ]; then
-          echo "Switching context to oidc@yh-cluster (was: $current)"
-          kubectl config use-context oidc@yh-cluster
-          trap "kubectl config use-context $current" EXIT
-        fi
-      - |
+        trap "kubectl config use-context $current" EXIT
+        kubectl config use-context oidc@yh-cluster
+
         echo "== get pod -A (should succeed with 'view') =="
         kubectl get pod -A | head -5
-      - |
+
         echo "== get secret -A (should be Forbidden) =="
         if kubectl get secret -A 2>&1 | tee /dev/stderr | grep -q 'Forbidden\|forbidden'; then
           echo "PASS: Secret access denied"
@@ -410,7 +407,7 @@ tasks:
           echo "FAIL: Secret access should have been denied" >&2
           exit 1
         fi
-      - |
+
         echo "== create deployment (should be Forbidden) =="
         if kubectl create deployment oidc-test --image=nginx 2>&1 | grep -q 'Forbidden\|forbidden'; then
           echo "PASS: create denied"
