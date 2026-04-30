@@ -281,9 +281,10 @@ task test:gateway           # nginx + Gateway + HTTPRoute → EXTERNAL-IP 取得
 task test:eso               # ExternalSecret -> Secret 同期確認（1Password yh-cluster vault）
 task eso:bootstrap-secret   # onepassword-token Secret を 1Password から作成（rebuild 後の初回のみ）
 task test:flux-rbac         # 全 helm chart SA / flux controller SA の権限スコープ確認
-task admin:verify-break-glass  # break-glass kubeconfig が 1Password に存在するか確認
-task admin:break-glass      # 1Password から admin kubeconfig を取得して ~/.kube/config にマージ（緊急時のみ）
-task admin:save-kubeconfig  # 現在の admin@yh-cluster kubeconfig を 1Password に保存（認証情報ローテーション後）
+task admin:verify-break-glass     # break-glass kubeconfig が 1Password に存在するか確認
+task admin:break-glass            # 1Password から admin kubeconfig を取得して ~/.kube/config にマージ（緊急時のみ）
+task admin:delete-local-admin     # ~/.kube/config から admin context/user を全削除（break-glass 確認後に実行）
+task admin:save-kubeconfig        # 現在の admin@yh-cluster kubeconfig を 1Password に保存（認証情報ローテーション後）
 ```
 
 ### Longhorn 前提条件（yh-talos 側）

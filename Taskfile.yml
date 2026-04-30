@@ -114,6 +114,7 @@ tasks:
 
   admin:save-kubeconfig:
     desc: "Save current admin@yh-cluster kubeconfig to 1Password yh-cluster vault (run after credential rotation)"
+    prompt: "This will overwrite the break-glass kubeconfig in 1Password with the current admin@yh-cluster credentials. Make sure the credentials are valid before proceeding. Continue?"
     cmds:
       - |
         kubectl config view --context=admin@yh-cluster --minify --raw -o yaml > /tmp/break-glass-kubeconfig.yaml
@@ -167,6 +168,26 @@ tasks:
         echo ""
         echo "Alternative (no 1Password):"
         echo "  talosctl kubeconfig --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig"
+
+  admin:delete-local-admin:
+    desc: "Delete all admin contexts/users from ~/.kube/config (run after break-glass is confirmed in 1Password)"
+    prompt: "This will permanently delete all admin contexts and users from ~/.kube/config and switch to oidc@yh-cluster. Confirm break-glass is in 1Password (task admin:verify-break-glass) before proceeding. Continue?"
+    cmds:
+      - |
+        # Switch to OIDC first so we don't delete the current context
+        kubectl config use-context oidc@yh-cluster
+        # Delete all contexts whose name starts with "admin@"
+        for ctx in $(kubectl config get-contexts -o name | grep '^admin@'); do
+          kubectl config delete-context "$ctx" && echo "Deleted context: $ctx"
+        done
+        # Delete all users whose name starts with "admin@"
+        for user in $(kubectl config get-users | grep '^admin@'); do
+          kubectl config delete-user "$user" && echo "Deleted user: $user"
+        done
+        echo ""
+        echo "Current context: $(kubectl config current-context)"
+        echo "Remaining contexts:"
+        kubectl config get-contexts
 
   # ────────────────────────────────
   # eso: External Secrets Operator lifecycle
