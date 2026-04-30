@@ -280,6 +280,10 @@ task test:lb                # nginx LB デプロイ → EXTERNAL-IP 取得 → c
 task test:gateway           # nginx + Gateway + HTTPRoute → EXTERNAL-IP 取得 → curl → cleanup
 task test:eso               # ExternalSecret -> Secret 同期確認（1Password yh-cluster vault）
 task eso:bootstrap-secret   # onepassword-token Secret を 1Password から作成（rebuild 後の初回のみ）
+task test:flux-rbac         # 全 helm chart SA / flux controller SA の権限スコープ確認
+task admin:verify-break-glass  # break-glass kubeconfig が 1Password に存在するか確認
+task admin:break-glass      # 1Password から admin kubeconfig を取得して ~/.kube/config にマージ（緊急時のみ）
+task admin:save-kubeconfig  # 現在の admin@yh-cluster kubeconfig を 1Password に保存（認証情報ローテーション後）
 ```
 
 ### Longhorn 前提条件（yh-talos 側）
@@ -375,13 +379,40 @@ kubectl --context oidc@yh-cluster get pod -A
 
 # 4. E2E 検証（read 許可 / write・Secret 拒否）
 task test:oidc
-
-# 5. 作業後は admin context に戻す
-kubectl config use-context admin@yh-cluster
 ```
 
 OIDC 認証のフロー: `kubectl oidc-login get-token` → ブラウザ → GitHub OAuth → Dex → ID Token (JWT)
   → kube-apiserver が JWKS 検証 → RBAC（`ClusterRoleBinding: oidc-user-robo358-view`）
+
+### Break-Glass admin アクセス手順（緊急時）
+
+通常操作は OIDC context（`oidc@yh-cluster`）で行う。ローカルの admin context は削除済みのため、緊急時は 1Password からの復元が必要。
+
+**準備確認（事前）:**
+```bash
+task admin:verify-break-glass   # break-glass kubeconfig が 1Password に存在するか確認
+```
+
+**緊急アクセス手順:**
+```bash
+# 方法 A: 1Password から復元（推奨）
+task admin:break-glass          # ~/.kube/config に admin@yh-cluster をマージ
+kubectl config use-context admin@yh-cluster
+
+# 方法 B: talosctl から直接生成（op CLI が使えない場合）
+talosctl kubeconfig --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig
+kubectl config use-context admin@yh-cluster
+```
+
+**認証情報ローテーション後の更新:**
+```bash
+task admin:save-kubeconfig      # 新しい admin kubeconfig を 1Password に上書き保存
+```
+
+**使用後の注意:** admin context での作業が終わったら必ず OIDC context に戻す:
+```bash
+kubectl config use-context oidc@yh-cluster
+```
 
 ### yh-talos 側との連携事項
 

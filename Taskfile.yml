@@ -109,6 +109,66 @@ tasks:
       - kubectl -n {{.CILIUM_NS}} rollout status deploy/cilium-operator --timeout=2m
 
   # ────────────────────────────────
+  # admin: Break-Glass admin access via 1Password
+  # ────────────────────────────────
+
+  admin:save-kubeconfig:
+    desc: "Save current admin@yh-cluster kubeconfig to 1Password yh-cluster vault (run after credential rotation)"
+    cmds:
+      - |
+        kubectl config view --context=admin@yh-cluster --minify --raw -o yaml > /tmp/break-glass-kubeconfig.yaml
+        if {{.OP_CMD}} document get "yh-cluster-break-glass-kubeconfig" --vault yh-cluster >/dev/null 2>&1; then
+          {{.OP_CMD}} document edit "yh-cluster-break-glass-kubeconfig" /tmp/break-glass-kubeconfig.yaml --vault yh-cluster
+          echo "Updated: yh-cluster-break-glass-kubeconfig in 1Password (yh-cluster vault)"
+        else
+          {{.OP_CMD}} document create /tmp/break-glass-kubeconfig.yaml \
+            --vault yh-cluster \
+            --title "yh-cluster-break-glass-kubeconfig"
+          echo "Created: yh-cluster-break-glass-kubeconfig in 1Password (yh-cluster vault)"
+        fi
+        rm -f /tmp/break-glass-kubeconfig.yaml
+
+  admin:break-glass:
+    desc: "Retrieve admin kubeconfig from 1Password and merge into ~/.kube/config (emergency use only)"
+    prompt: "This will write admin credentials from 1Password to /tmp/break-glass-kubeconfig.yaml and merge into ~/.kube/config. Continue?"
+    cmds:
+      - |
+        {{.OP_CMD}} document get "yh-cluster-break-glass-kubeconfig" --vault yh-cluster \
+          > /tmp/break-glass-kubeconfig.yaml || {
+          echo "ERROR: could not retrieve kubeconfig from 1Password." >&2
+          echo "Run '{{.OP_CMD}} signin' first, or use: talosctl kubeconfig --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig" >&2
+          exit 1
+        }
+        KUBECONFIG=~/.kube/config:/tmp/break-glass-kubeconfig.yaml \
+          kubectl config view --flatten > /tmp/merged-kubeconfig.yaml
+        mv /tmp/merged-kubeconfig.yaml ~/.kube/config
+        chmod 600 ~/.kube/config
+        rm -f /tmp/break-glass-kubeconfig.yaml
+        echo "Merged admin@yh-cluster into ~/.kube/config"
+        echo "Switch context: kubectl config use-context admin@yh-cluster"
+        echo "Restore OIDC:   kubectl config use-context oidc@yh-cluster"
+
+  admin:verify-break-glass:
+    desc: "Verify break-glass kubeconfig exists in 1Password and is retrievable"
+    cmds:
+      - |
+        echo "== Checking 1Password document =="
+        if {{.OP_CMD}} document get "yh-cluster-break-glass-kubeconfig" --vault yh-cluster \
+            | grep -q "server:"; then
+          echo "PASS: break-glass kubeconfig exists and contains server URL"
+        else
+          echo "FAIL: break-glass kubeconfig not found or invalid" >&2
+          exit 1
+        fi
+        echo ""
+        echo "Break-glass procedure:"
+        echo "  task admin:break-glass"
+        echo "  kubectl config use-context admin@yh-cluster"
+        echo ""
+        echo "Alternative (no 1Password):"
+        echo "  talosctl kubeconfig --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig"
+
+  # ────────────────────────────────
   # eso: External Secrets Operator lifecycle
   # ────────────────────────────────
 
@@ -585,26 +645,62 @@ tasks:
       - kubectl auth can-i impersonate serviceaccount --as=system:serviceaccount:flux-system:helm-controller -n kube-system
 
   test:flux-rbac:
-    desc: "両 controller が直接 cluster-admin を持たないことを確認"
+    desc: "Flux/helm SA が cluster-admin を持たないことを包括確認"
     deps: [ctx:check]
     cmds:
       - |
-        if kubectl auth can-i create clusterrole --as=system:serviceaccount:flux-system:kustomize-controller 2>&1 | grep -q yes; then
-          echo "FAIL: kustomize-controller still has cluster-admin"
-          exit 1
-        fi
-        if ! kubectl auth can-i impersonate serviceaccount --as=system:serviceaccount:flux-system:kustomize-controller -n flux-system 2>&1 | grep -q yes; then
-          echo "FAIL: kustomize-controller cannot impersonate"
-          exit 1
-        fi
-        echo "PASS: kustomize-controller does NOT have direct cluster-admin, but CAN impersonate"
-      - |
-        if kubectl auth can-i create clusterrole --as=system:serviceaccount:flux-system:helm-controller 2>&1 | grep -q yes; then
-          echo "FAIL: helm-controller still has cluster-admin"
-          exit 1
-        fi
-        if ! kubectl auth can-i impersonate serviceaccount --as=system:serviceaccount:flux-system:helm-controller -n kube-system 2>&1 | grep -q yes; then
-          echo "FAIL: helm-controller cannot impersonate"
-          exit 1
-        fi
-        echo "PASS: helm-controller does NOT have direct cluster-admin, but CAN impersonate"
+        fail=0
+
+        check_no_admin() {
+          local desc="$1" as="$2"
+          if kubectl auth can-i create clusterrole --as="$as" 2>&1 | grep -q yes; then
+            echo "FAIL: $desc still has cluster-admin"
+            fail=1
+          else
+            echo "PASS: $desc does NOT have cluster-admin"
+          fi
+        }
+
+        check_can_impersonate() {
+          local desc="$1" as="$2" ns="$3"
+          if kubectl auth can-i impersonate serviceaccount --as="$as" -n "$ns" 2>&1 | grep -q yes; then
+            echo "PASS: $desc CAN impersonate (expected)"
+          else
+            echo "FAIL: $desc CANNOT impersonate"
+            fail=1
+          fi
+        }
+
+        echo "=== Flux controllers ==="
+        check_no_admin "kustomize-controller" "system:serviceaccount:flux-system:kustomize-controller"
+        check_can_impersonate "kustomize-controller" "system:serviceaccount:flux-system:kustomize-controller" "flux-system"
+        check_no_admin "helm-controller" "system:serviceaccount:flux-system:helm-controller"
+        check_can_impersonate "helm-controller" "system:serviceaccount:flux-system:helm-controller" "kube-system"
+
+        echo ""
+        echo "=== Flux controller Kustomization SAs ==="
+        for sa in flux-cilium flux-external-secrets flux-longhorn flux-cert-manager flux-dex; do
+          check_no_admin "$sa" "system:serviceaccount:flux-system:$sa"
+        done
+
+        echo ""
+        echo "=== Helm chart SAs ==="
+        check_no_admin "helm-cilium"           "system:serviceaccount:kube-system:helm-cilium"
+        check_no_admin "helm-cert-manager"     "system:serviceaccount:cert-manager:helm-cert-manager"
+        check_no_admin "helm-external-secrets" "system:serviceaccount:external-secrets:helm-external-secrets"
+        check_no_admin "helm-longhorn"         "system:serviceaccount:longhorn-system:helm-longhorn"
+        check_no_admin "helm-dex"              "system:serviceaccount:dex:helm-dex"
+
+        echo ""
+        echo "=== Cross-namespace secret access (should all be no) ==="
+        for ns_sa in "kube-system:helm-cilium" "cert-manager:helm-cert-manager" "external-secrets:helm-external-secrets" "longhorn-system:helm-longhorn" "dex:helm-dex"; do
+          ns=${ns_sa%%:*}; sa=${ns_sa##*:}
+          if kubectl auth can-i get secrets --as="system:serviceaccount:${ns}:${sa}" -n default 2>&1 | grep -q yes; then
+            echo "FAIL: $sa can read secrets in default namespace"
+            fail=1
+          else
+            echo "PASS: $sa cannot read secrets across namespaces"
+          fi
+        done
+
+        exit $fail
