@@ -29,23 +29,25 @@ spec:
         )
       message: "Phase D: rule with verbs=*, resources=*, apiGroups=* is denied (cluster-admin equivalent)"
       reason: Forbidden
-    # P2: clusterroles への escalate/bind without resourceNames を deny
-    # (resourceNames で絞られていれば合法 — helm-*-role の設計に準拠)
+    # P2: clusterroles への明示的な escalate/bind without resourceNames を deny
+    # NOTE: verbs:["*"] は chart の管理用 wildcard として許可（longhorn-role 等）
+    # resourceNames で絞られていれば合法 — helm-*-role の設計に準拠
     - expression: |
         !object.rules.exists(r,
           has(r.apiGroups) && 'rbac.authorization.k8s.io' in r.apiGroups &&
           has(r.resources) && 'clusterroles' in r.resources &&
-          (('escalate' in r.verbs) || ('bind' in r.verbs) || ('*' in r.verbs)) &&
+          (('escalate' in r.verbs) || ('bind' in r.verbs)) &&
           (!has(r.resourceNames) || size(r.resourceNames) == 0)
         )
-      message: "Phase D: escalate/bind on clusterroles without resourceNames is denied"
+      message: "Phase D: explicit escalate/bind on clusterroles without resourceNames is denied"
       reason: Forbidden
-    # P3: users/groups/serviceaccounts への impersonate を deny
+    # P3: users/groups/serviceaccounts への明示的な impersonate を deny
+    # NOTE: verbs:["*"] は chart の管理用 wildcard として許可（longhorn Role 等）
     - expression: |
         !object.rules.exists(r,
           has(r.resources) &&
           r.resources.exists(res, res in ['users', 'groups', 'serviceaccounts']) &&
-          (('impersonate' in r.verbs) || ('*' in r.verbs))
+          'impersonate' in r.verbs
         )
-      message: "Phase D: impersonate verb on users/groups/serviceaccounts is denied"
+      message: "Phase D: explicit impersonate verb on users/groups/serviceaccounts is denied"
       reason: Forbidden

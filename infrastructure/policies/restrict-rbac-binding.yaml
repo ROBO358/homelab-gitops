@@ -21,7 +21,12 @@ spec:
       expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
   validations:
     # P4: cluster-admin への binding を deny
-    - expression: "object.roleRef.name != 'cluster-admin'"
+    # Exception: helm-longhorn が longhorn-support-bundle CRB を作成するのは chart 設計制約で許可
+    # (Phase 3a で bind:cluster-admin を helm-longhorn-role に含めた既知の制約)
+    - expression: |
+        object.roleRef.name != 'cluster-admin' ||
+        (request.userInfo.username == 'system:serviceaccount:longhorn-system:helm-longhorn' &&
+         object.metadata.name == 'longhorn-support-bundle')
       message: "Phase D: binding to cluster-admin is denied (only flux-system-root may, via allowlist)"
       reason: Forbidden
     # P5: 特権 system ClusterRole への binding を deny
