@@ -653,8 +653,9 @@ tasks:
 
         check_no_admin() {
           local desc="$1" as="$2"
-          if kubectl auth can-i create clusterrole --as="$as" 2>&1 | grep -q yes; then
-            echo "FAIL: $desc still has cluster-admin"
+          # Use "create nodes" as proxy: cluster-admin can, scoped helm-* roles cannot
+          if kubectl auth can-i create nodes --as="$as" 2>&1 | grep -q yes; then
+            echo "FAIL: $desc still has cluster-admin (can create nodes)"
             fail=1
           else
             echo "PASS: $desc does NOT have cluster-admin"
