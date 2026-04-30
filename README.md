@@ -45,9 +45,10 @@ infrastructure/
 - [x] RBAC/OIDC Phase B-Next/3a — helm-longhorn の権限縮小（scoped ClusterRole + longhorn-system admin、`bind` を longhorn-role/cluster-admin に限定）
 - [x] RBAC/OIDC Phase B-Next/3b — helm-external-secrets の権限縮小（scoped ClusterRole + external-secrets ns admin、`bind` を chart ClusterRole 5種に限定）
 - [x] RBAC/OIDC Phase B-Next/3c — helm-cert-manager の権限縮小（scoped ClusterRole + cert-manager/kube-system admin、`bind` を chart ClusterRole 13種に限定）
+- [x] RBAC/OIDC Phase B-Next/3d — helm-cilium の権限縮小（scoped ClusterRole + kube-system admin、`bind` を cilium/cilium-operator/hubble-ui に限定）
 
 ### Next
-- [ ] Phase B-Next/3d — helm-cilium の権限縮小
 - [ ] Phase B-Next/3e — flux-<chart> controller SA x5 の権限縮小
+- [ ] Phase C — Break-Glass kubeconfig 1Password 退避 / ローカル admin context 削除
 - [ ] Phase B-Next/3e — flux-<chart> controller SA x5 の権限縮小
 - [ ] Phase C — Break-Glass kubeconfig 1Password 退避 / ローカル admin context 削除
