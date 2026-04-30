@@ -20,3 +20,34 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: cluster-admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-external-secrets-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-external-secrets
+    namespace: external-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helm-external-secrets-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: helm-external-secrets-ns-admin
+  namespace: external-secrets
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-external-secrets
+    namespace: external-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
