@@ -48,6 +48,7 @@ infrastructure/
 - [x] RBAC/OIDC Phase B-Next/3d — helm-cilium の権限縮小（scoped ClusterRole + kube-system admin、`bind` を cilium/cilium-operator/hubble-ui に限定）
 - [x] RBAC/OIDC Phase B-Next/3e — flux-{cilium,external-secrets,longhorn,cert-manager,dex} controller SA x5 の権限縮小（cluster-admin 全剥離 / scoped role + bind 限定）
 - [x] RBAC/OIDC Phase C — Break-Glass kubeconfig 1Password 退避（`yh-cluster-break-glass-kubeconfig` document）/ ローカル admin context 全削除
+- [x] RBAC/OIDC Phase D — ValidatingAdmissionPolicy で escalate/impersonate/cluster-admin 権限昇格を admission レベルで阻止（`restrict-rbac-rules` + `restrict-rbac-binding`、Deny mode）
 
 ### Next
-- [ ] Phase D — Kyverno/ValidatingAdmissionPolicy で `escalate` 経由の cluster-admin 相当 ClusterRole 作成を admission レベルで阻止
+- [ ] アプリケーションワークロードの追加
