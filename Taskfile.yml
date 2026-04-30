@@ -726,3 +726,135 @@ tasks:
         done
 
         exit $fail
+
+  # ────────────────────────────────
+  # policies: ValidatingAdmissionPolicy (Phase D)
+  # ────────────────────────────────
+
+  verify:policies:
+    desc: "VAP と Binding の状態確認"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get validatingadmissionpolicy -l app.kubernetes.io/part-of=policies
+      - kubectl get validatingadmissionpolicybinding -l app.kubernetes.io/part-of=policies
+      - flux get kustomization policies -n flux-system
+
+  test:policies:
+    desc: "Phase D VAP が意図通りに動作することを確認（Deny mode が前提）"
+    deps: [ctx:check]
+    cmds:
+      - |
+        fail=0
+
+        expect_denied() {
+          local desc="$1"; shift
+          if "$@" 2>&1 | grep -qiE 'denied|forbidden|Phase D'; then
+            echo "PASS: $desc — denied as expected"
+          else
+            echo "FAIL: $desc — should have been denied"
+            fail=1
+          fi
+        }
+
+        expect_allowed() {
+          local desc="$1"; shift
+          if "$@" 2>&1 | grep -qiE 'Error|denied|forbidden'; then
+            echo "FAIL: $desc — unexpected denial"
+            fail=1
+          else
+            echo "PASS: $desc — allowed as expected"
+          fi
+        }
+
+        echo "=== Phase D: 毒入り ClusterRole 作成は deny ==="
+        # P1: triple-wildcard (cluster-admin 同等)
+        expect_denied "triple-wildcard ClusterRole" \
+          kubectl --as=system:serviceaccount:kube-system:helm-cilium \
+            create -f - <<'EOF'
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: poison-triple-wildcard-test
+        rules:
+          - apiGroups: ["*"]
+            resources: ["*"]
+            verbs: ["*"]
+        EOF
+
+        # P2: escalate on clusterroles without resourceNames
+        expect_denied "escalate on clusterroles (no resourceNames)" \
+          kubectl --as=system:serviceaccount:kube-system:helm-cilium \
+            create -f - <<'EOF'
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: poison-escalate-test
+        rules:
+          - apiGroups: ["rbac.authorization.k8s.io"]
+            resources: ["clusterroles"]
+            verbs: ["escalate"]
+        EOF
+
+        # P3: impersonate on serviceaccounts
+        expect_denied "impersonate on serviceaccounts" \
+          kubectl --as=system:serviceaccount:kube-system:helm-cilium \
+            create -f - <<'EOF'
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: poison-impersonate-test
+        rules:
+          - apiGroups: [""]
+            resources: ["serviceaccounts"]
+            verbs: ["impersonate"]
+        EOF
+
+        echo ""
+        echo "=== Phase D: cluster-admin への binding は deny ==="
+        # P4: bind to cluster-admin
+        expect_denied "binding to cluster-admin" \
+          kubectl --as=system:serviceaccount:kube-system:helm-cilium \
+            create -f - <<'EOF'
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: poison-cluster-admin-bind-test
+        subjects:
+          - kind: ServiceAccount
+            name: default
+            namespace: default
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: cluster-admin
+        EOF
+
+        echo ""
+        echo "=== Phase D: 正当な chart reconcile は通る ==="
+        expect_allowed "flux-rbac kustomization reconcile" \
+          flux reconcile kustomization flux-rbac --timeout=60s
+
+        echo ""
+        echo "=== Phase D: escalate with resourceNames は合法 ==="
+        expect_allowed "escalate on clusterroles WITH resourceNames" \
+          kubectl --as=system:serviceaccount:flux-system:flux-system-root \
+            create -f - <<'EOF'
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: test-escalate-with-resourcenames
+        rules:
+          - apiGroups: ["rbac.authorization.k8s.io"]
+            resources: ["clusterroles"]
+            resourceNames: ["some-role"]
+            verbs: ["escalate"]
+        EOF
+        kubectl delete clusterrole test-escalate-with-resourcenames --ignore-not-found
+
+        echo ""
+        if [ $fail -eq 0 ]; then
+          echo "ALL PASS: Phase D policies are working correctly"
+        else
+          echo "SOME CHECKS FAILED" >&2
+        fi
+        exit $fail

@@ -1,0 +1,10 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: restrict-rbac-binding
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  policyName: restrict-rbac-binding
+  validationActions: [Audit, Warn]
+  # Phase D2 で [Deny] に切り替える

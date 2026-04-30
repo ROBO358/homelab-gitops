@@ -1,0 +1,51 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-rbac-rules
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusterroles", "roles"]
+  matchConditions:
+    # Allow system:masters group (break-glass admin, cert-based)
+    - name: not-system-masters
+      expression: "!('system:masters' in (request.userInfo.groups.orValue([])))"
+    # Allow Flux root SA (applies flux-rbac and this policy itself)
+    - name: not-flux-root
+      expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
+  validations:
+    # P1: cluster-admin 同等 (verbs/resources/apiGroups 全 wildcard) を deny
+    - expression: |
+        !object.rules.exists(r,
+          ('*' in r.verbs) &&
+          (has(r.resources) && '*' in r.resources) &&
+          (has(r.apiGroups) && '*' in r.apiGroups)
+        )
+      message: "Phase D: rule with verbs=*, resources=*, apiGroups=* is denied (cluster-admin equivalent)"
+      reason: Forbidden
+    # P2: clusterroles への escalate/bind without resourceNames を deny
+    # (resourceNames で絞られていれば合法 — helm-*-role の設計に準拠)
+    - expression: |
+        !object.rules.exists(r,
+          has(r.apiGroups) && 'rbac.authorization.k8s.io' in r.apiGroups &&
+          has(r.resources) && 'clusterroles' in r.resources &&
+          (('escalate' in r.verbs) || ('bind' in r.verbs) || ('*' in r.verbs)) &&
+          (!has(r.resourceNames) || size(r.resourceNames) == 0)
+        )
+      message: "Phase D: escalate/bind on clusterroles without resourceNames is denied"
+      reason: Forbidden
+    # P3: users/groups/serviceaccounts への impersonate を deny
+    - expression: |
+        !object.rules.exists(r,
+          has(r.resources) &&
+          r.resources.exists(res, res in ['users', 'groups', 'serviceaccounts']) &&
+          (('impersonate' in r.verbs) || ('*' in r.verbs))
+        )
+      message: "Phase D: impersonate verb on users/groups/serviceaccounts is denied"
+      reason: Forbidden

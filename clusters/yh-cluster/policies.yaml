@@ -1,0 +1,18 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: policies
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  path: ./infrastructure/policies
+  prune: true
+  # serviceAccountName 不指定 → flux-system-root が適用（VAP は cluster-scoped、namespace SA では適用不可）
+  dependsOn:
+    - name: flux-rbac
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+  timeout: 5m

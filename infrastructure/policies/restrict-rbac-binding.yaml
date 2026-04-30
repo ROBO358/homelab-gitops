@@ -1,0 +1,30 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-rbac-binding
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusterrolebindings", "rolebindings"]
+  matchConditions:
+    # Allow system:masters group (break-glass admin, cert-based)
+    - name: not-system-masters
+      expression: "!('system:masters' in (request.userInfo.groups.orValue([])))"
+    # Allow Flux root SA (creates flux-system-root-applier → cluster-admin)
+    - name: not-flux-root
+      expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
+  validations:
+    # P4: cluster-admin への binding を deny
+    - expression: "object.roleRef.name != 'cluster-admin'"
+      message: "Phase D: binding to cluster-admin is denied (only flux-system-root may, via allowlist)"
+      reason: Forbidden
+    # P5: 特権 system ClusterRole への binding を deny
+    - expression: "!(object.roleRef.name in ['system:masters', 'system:node', 'system:kube-controller-manager'])"
+      message: "Phase D: binding to privileged system roles is denied"
+      reason: Forbidden
