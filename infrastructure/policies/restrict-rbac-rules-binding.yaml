@@ -6,5 +6,4 @@ metadata:
     app.kubernetes.io/part-of: policies
 spec:
   policyName: restrict-rbac-rules
-  validationActions: [Audit, Warn]
-  # Phase D2 で [Deny] に切り替える
+  validationActions: [Deny]
