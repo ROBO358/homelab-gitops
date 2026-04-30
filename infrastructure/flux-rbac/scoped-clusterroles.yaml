@@ -87,6 +87,11 @@ rules:
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterroles]
     verbs: [escalate, bind]
+  # admin ClusterRole には bind/escalate が含まれないため补完
+  # dex chart が dex namespace に Role/RoleBinding(dex.coreos.com/* 含む)を作成するため必要
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete, escalate, bind]
   - apiGroups: [apiextensions.k8s.io]
     resources: [customresourcedefinitions]
     verbs: [list, create]
