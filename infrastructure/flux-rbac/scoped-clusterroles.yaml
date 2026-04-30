@@ -106,9 +106,11 @@ rules:
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterroles, clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
+  # longhorn-support-bundle CRB が cluster-admin を参照するため cluster-admin の bind が必要
+  # これは chart の設計制約であり、Longhorn のスコープ限定の本質的な限界
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterroles]
-    resourceNames: [longhorn-role, admin]
+    resourceNames: [longhorn-role, cluster-admin, admin]
     verbs: [bind]
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterroles]
