@@ -15,7 +15,7 @@ spec:
   matchConditions:
     # Allow system:masters group (break-glass admin, cert-based)
     - name: not-system-masters
-      expression: "!('system:masters' in (request.userInfo.groups.orValue([])))"
+      expression: "!('system:masters' in request.userInfo.groups)"
     # Allow Flux root SA (applies flux-rbac and this policy itself)
     - name: not-flux-root
       expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
