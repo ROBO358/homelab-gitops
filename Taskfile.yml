@@ -910,3 +910,31 @@ tasks:
     deps: [ctx:check]
     cmds:
       - kubectl -n {{.MONITORING_NS}} port-forward svc/monitoring-grafana 3000:80
+
+  # ────────────────────────────────
+  # worker: Cloudflare Workers probe
+  # ────────────────────────────────
+
+  worker:deploy:
+    desc: "Deploy yh-probe Cloudflare Worker (requires wrangler login)"
+    dir: workers/probe
+    cmds:
+      - wrangler deploy
+
+  worker:secret:
+    desc: "Set DISCORD_WEBHOOK_URL secret for yh-probe Worker (reads from stdin)"
+    dir: workers/probe
+    cmds:
+      - wrangler secret put DISCORD_WEBHOOK_URL
+
+  worker:tail:
+    desc: "Tail live logs from yh-probe Cloudflare Worker"
+    dir: workers/probe
+    cmds:
+      - wrangler tail
+
+  worker:test:
+    desc: "Trigger yh-probe Worker via HTTP and print result (requires wrangler login)"
+    dir: workers/probe
+    cmds:
+      - wrangler dev --test-scheduled 2>/dev/null || wrangler dev
