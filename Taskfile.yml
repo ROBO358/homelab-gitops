@@ -25,6 +25,9 @@ vars:
   MONITORING_NS: monitoring
   KPS_VERSION: "84.4.0"
   GRAFANA_HOST: "grafana.yh.k8s.tsuru.run"
+  # Keep in sync with infrastructure/cloudflared/controller/helmrelease.yaml
+  CLOUDFLARED_NS: cloudflared
+  CLOUDFLARED_CHART_VERSION: "0.1.2"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"

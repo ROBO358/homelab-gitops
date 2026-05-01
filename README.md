@@ -50,7 +50,8 @@ infrastructure/
 - [x] RBAC/OIDC Phase C — Break-Glass kubeconfig 1Password 退避（`yh-cluster-break-glass-kubeconfig` document）/ ローカル admin context 全削除
 - [x] RBAC/OIDC Phase D — ValidatingAdmissionPolicy で escalate/impersonate/cluster-admin 権限昇格を admission レベルで阻止（`restrict-rbac-rules` + `restrict-rbac-binding`、Deny mode）
 - [x] Monitoring M1-M5 — kube-prometheus-stack + Grafana Cloud remoteWrite（sli:* のみ）+ Healthchecks.io heartbeat + Discord アラート + `grafana.yh.k8s.tsuru.run` TLS UI
+- [x] Cloudflare Tunnel — cloudflare-tunnel-remote Helm chart + ESO で tunnel token 管理
 
 ### Next
-- [ ] Cloudflare Tunnel（cloudflared）+ Workers 外形監視
+- [ ] Cloudflare Workers 外形監視（cloudflared 稼働後に grafana / dex エンドポイントを probe）
 - [ ] アプリケーションワークロードの追加
