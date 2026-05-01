@@ -419,12 +419,10 @@ rules:
     resources: [clusterroles]
     resourceNames:
       - monitoring-grafana-clusterrole
-      - monitoring-kube-prometheus-stack-alertmanager
-      - monitoring-kube-prometheus-stack-operator
-      - monitoring-kube-prometheus-stack-prometheus
-      - monitoring-kube-prometheus-stack-prometheus-metrics-api
+      - monitoring-kube-prometheus-admission
+      - monitoring-kube-prometheus-operator
+      - monitoring-kube-prometheus-prometheus
       - monitoring-kube-state-metrics
-      - monitoring-prometheus-node-exporter
       - admin
       - view
       - edit
@@ -447,10 +445,34 @@ rules:
   - apiGroups: [""]
     resources: [nodes, nodes/metrics, nodes/proxy]
     verbs: [get, list, watch]
-  # kube-prometheus-stack reads services/endpoints/pods across namespaces during install health checks
+  # kube-prometheus-stack manages services/pods/configmaps across namespaces
+  # (e.g. headless Services in kube-system for CoreDNS/etcd scraping)
   - apiGroups: [""]
-    resources: [services, endpoints, pods, configmaps, namespaces, serviceaccounts]
+    resources: [services, services/finalizers, endpoints, pods, configmaps, namespaces, serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: [""]
+    resources: [secrets]
     verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [statefulsets, deployments, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch, create, patch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
