@@ -49,6 +49,20 @@ spec:
               resources:
                 requests:
                   storage: 15Gi
+        # remoteWrite only sli:* recording rules to Grafana Cloud (14d retention)
+        remoteWrite:
+          - url: https://prometheus-prod-49-prod-ap-northeast-0.grafana.net/api/prom/push
+            basicAuth:
+              username:
+                name: monitoring-grafana-cloud
+                key: username
+              password:
+                name: monitoring-grafana-cloud
+                key: password
+            writeRelabelConfigs:
+              - sourceLabels: [__name__]
+                regex: 'sli:.*'
+                action: keep
 
     # ── Grafana ─────────────────────────────────────────────
     grafana:
