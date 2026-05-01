@@ -1,0 +1,41 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monitoring
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  path: ./infrastructure/monitoring/controller
+  prune: true
+  serviceAccountName: flux-monitoring
+  dependsOn:
+    - name: flux-rbac
+    - name: longhorn              # Prometheus / Grafana / Alertmanager の PVC 用
+    - name: external-secrets-config   # ExternalSecret が ClusterSecretStore を参照するため
+    - name: cert-manager-config       # config 層で ClusterIssuer を参照するため（controller 自体は不要だが統一）
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+  timeout: 15m
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monitoring-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  path: ./infrastructure/monitoring/config
+  prune: true
+  serviceAccountName: flux-monitoring-config
+  dependsOn:
+    - name: flux-rbac
+    - name: monitoring
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  wait: true
+  timeout: 10m

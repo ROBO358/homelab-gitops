@@ -360,7 +360,7 @@ Flux 自身の GitHub 認証情報（deploy key）は `flux bootstrap` が生成
 │  │  └── 開発者・運用者向け日常分析                │   │
 │  │                                               │   │
 │  │  Alertmanager                                 │   │
-│  │  ├── Warning / Critical → Slack               │   │
+│  │  ├── Warning / Critical → Discord             │   │
 │  │  └── Watchdog heartbeat ──────────────────────┼──→ Healthchecks.io
 │  └──────────────────────────────────────────────┘   │
 │                                                      │
@@ -437,7 +437,7 @@ Cloudflare Workers
   ├── grafana-cloud-credentials   → ESO → Secret（remoteWrite 認証）
   ├── grafana-admin-password      → ESO → Secret（in-cluster Grafana 管理者）
   ├── healthchecks-url            → ESO → Secret（Alertmanager Watchdog webhook）
-  └── slack-webhook-url           → ESO → Secret（Alertmanager 通知先）
+  └── discord-webhook-url         → ESO → Secret（Alertmanager 通知先）
 ```
 
 ### GitOps 配置
@@ -455,7 +455,7 @@ infrastructure/
       externalsecret-grafana-cloud.yaml
       externalsecret-grafana-admin.yaml
       externalsecret-healthchecks.yaml
-      externalsecret-slack.yaml
+      externalsecret-discord.yaml
       certificate.yaml              # grafana.yh.k8s.tsuru.run TLS
       gateway.yaml
       httproute.yaml

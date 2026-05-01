@@ -21,6 +21,10 @@ vars:
   DEX_NS: dex
   DEX_VERSION: "0.24.0"
   DEX_HOST: "dex.yh.k8s.tsuru.run"
+  # Keep in sync with infrastructure/monitoring/controller/helmrelease.yaml
+  MONITORING_NS: monitoring
+  KPS_VERSION: "84.4.0"
+  GRAFANA_HOST: "grafana.yh.k8s.tsuru.run"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
@@ -858,3 +862,24 @@ tasks:
           echo "SOME CHECKS FAILED" >&2
         fi
         exit $fail
+
+  # ────────────────────────────────
+  # monitoring: kube-prometheus-stack
+  # ────────────────────────────────
+
+  verify:monitoring:
+    desc: "monitoring namespace の pods / pvc / flux 状態確認"
+    deps: [ctx:check]
+    cmds:
+      - flux get kustomization monitoring monitoring-config -n flux-system
+      - kubectl -n {{.MONITORING_NS}} get pod -o wide
+      - kubectl -n {{.MONITORING_NS}} get pvc
+      - kubectl -n {{.MONITORING_NS}} get externalsecret
+      - kubectl -n {{.MONITORING_NS}} get prometheusrule 2>/dev/null || true
+      - kubectl -n {{.MONITORING_NS}} get certificate 2>/dev/null || true
+
+  monitoring:ui:
+    desc: "Grafana UI を http://localhost:3000 に port-forward（Ctrl-C で停止）"
+    deps: [ctx:check]
+    cmds:
+      - kubectl -n {{.MONITORING_NS}} port-forward svc/monitoring-grafana 3000:80
