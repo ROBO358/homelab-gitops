@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: grafana-tls
+  namespace: monitoring
+spec:
+  secretName: grafana-tls
+  commonName: grafana.yh.k8s.tsuru.run
+  dnsNames:
+    - grafana.yh.k8s.tsuru.run
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  duration: 2160h
+  renewBefore: 720h

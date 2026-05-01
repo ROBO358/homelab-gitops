@@ -4,3 +4,6 @@ resources:
   - prometheusrule-sli.yaml
   - prometheusrule-alerts.yaml
   - networkpolicy-metrics.yaml
+  - certificate.yaml
+  - gateway.yaml
+  - httproute.yaml

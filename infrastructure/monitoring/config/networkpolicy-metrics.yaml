@@ -23,3 +23,12 @@ spec:
               protocol: TCP
             - port: "9091"
               protocol: TCP
+    # Allow Cilium Envoy (Gateway API proxy) from kube-system to reach Grafana UI
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: cilium-envoy
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
