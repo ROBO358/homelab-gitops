@@ -54,4 +54,5 @@ infrastructure/
 
 ### Next
 - [ ] Cloudflare Workers 外形監視（cloudflared 稼働後に grafana / dex エンドポイントを probe）
+- [ ] シークレットローテーション（grafana-cloud / cloudflare-api-token / dex-github-client / cloudflared-tunnel-token / grafana-admin の定期更新・自動化）
 - [ ] アプリケーションワークロードの追加
