@@ -91,7 +91,7 @@ spec:
             - matchers:
                 - alertname = Watchdog
               receiver: healthchecks
-              group_interval: 1m
+              group_interval: 30s
               repeat_interval: 1m
               continue: false
             - matchers:
