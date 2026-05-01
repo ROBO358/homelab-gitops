@@ -447,6 +447,10 @@ rules:
   - apiGroups: [""]
     resources: [nodes, nodes/metrics, nodes/proxy]
     verbs: [get, list, watch]
+  # kube-prometheus-stack reads services/endpoints/pods across namespaces during install health checks
+  - apiGroups: [""]
+    resources: [services, endpoints, pods, configmaps, namespaces, serviceaccounts]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
