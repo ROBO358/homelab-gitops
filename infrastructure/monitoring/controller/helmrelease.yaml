@@ -5,6 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   interval: 10m
+  timeout: 20m
   serviceAccountName: helm-monitoring
   releaseName: monitoring
   targetNamespace: monitoring
