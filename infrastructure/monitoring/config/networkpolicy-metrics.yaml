@@ -32,3 +32,11 @@ spec:
         - ports:
             - port: "3000"
               protocol: TCP
+    # Allow cloudflared tunnel pods to reach Grafana (for external probe routing)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cloudflared
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
