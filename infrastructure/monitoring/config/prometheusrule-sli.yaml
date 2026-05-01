@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sli-recording-rules
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: monitoring
+    release: monitoring
+spec:
+  groups:
+    - name: sli
+      interval: 30s
+      rules:
+        # kube-apiserver の可用性（5xx を除くリクエスト比率）
+        - record: sli:apiserver_availability:ratio_rate5m
+          expr: |
+            sum(rate(apiserver_request_total{code!~"5.."}[5m]))
+            /
+            sum(rate(apiserver_request_total[5m]))
+
+        # ノード可用性（Ready 状態のノード）
+        - record: sli:node_availability:bool
+          expr: |
+            min by (node) (
+              kube_node_status_condition{condition="Ready",status="true"}
+            )
+
+        # Pod 再起動率（namespace / pod 別）
+        - record: sli:pod_restart_rate:rate5m
+          expr: |
+            sum by (namespace, pod) (
+              rate(kube_pod_container_status_restarts_total[5m])
+            )
+
+        # HTTP エラー率（ServiceMonitor 経由でメトリクスを公開するアプリ向け）
+        - record: sli:http_error_rate:ratio_rate5m
+          expr: |
+            sum by (service) (rate(http_requests_total{code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+
+        # cert-manager 証明書の残有効日数
+        - record: sli:certificate_expiry_days
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400

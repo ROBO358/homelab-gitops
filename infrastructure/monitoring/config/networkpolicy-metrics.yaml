@@ -1,0 +1,25 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: monitoring
+spec:
+  # Apply to all pods in the monitoring namespace
+  endpointSelector: {}
+  ingress:
+    # Allow all intra-namespace traffic (Prometheus→Alertmanager, Grafana→Prometheus, etc.)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+    # Allow Prometheus from any namespace to scrape metrics ports
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+            - port: "9090"
+              protocol: TCP
+            - port: "9091"
+              protocol: TCP
