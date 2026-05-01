@@ -23,10 +23,11 @@ spec:
               protocol: TCP
             - port: "9091"
               protocol: TCP
-    # Allow Cilium Envoy (Gateway API proxy) to reach Grafana UI.
-    # cilium-envoy uses hostNetwork: true so Cilium sees it as the host entity, not a pod endpoint.
+    # Allow Cilium Gateway API proxy to reach Grafana UI.
+    # Cilium assigns identity "ingress" to Envoy gateway proxy traffic (not "host"),
+    # regardless of cilium-envoy using hostNetwork.
     - fromEntities:
-        - host
+        - ingress
       toPorts:
         - ports:
             - port: "3000"
