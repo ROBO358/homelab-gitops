@@ -878,6 +878,30 @@ tasks:
       - kubectl -n {{.MONITORING_NS}} get prometheusrule 2>/dev/null || true
       - kubectl -n {{.MONITORING_NS}} get certificate 2>/dev/null || true
 
+  test:monitoring:
+    desc: "Prometheus targets / SLI recording rules / Alertmanager Watchdog の動作確認"
+    deps: [ctx:check]
+    cmds:
+      - flux get helmrelease monitoring -n {{.MONITORING_NS}}
+      - |
+        echo "--- Prometheus targets (expecting most UP) ---"
+        kubectl -n {{.MONITORING_NS}} exec -it \
+          $(kubectl -n {{.MONITORING_NS}} get pod -l app.kubernetes.io/name=prometheus --no-headers -o custom-columns=':metadata.name' | head -1) \
+          -- wget -qO- 'http://localhost:9090/api/v1/query?query=up' 2>/dev/null | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); total=len(d['data']['result']); up=sum(1 for r in d['data']['result'] if r['value'][1]=='1'); print(f'UP: {up}/{total}')" || true
+      - |
+        echo "--- SLI recording rules ---"
+        kubectl -n {{.MONITORING_NS}} exec -it \
+          $(kubectl -n {{.MONITORING_NS}} get pod -l app.kubernetes.io/name=prometheus --no-headers -o custom-columns=':metadata.name' | head -1) \
+          -- wget -qO- 'http://localhost:9090/api/v1/query?query=sli%3Aanode_availability%3Abool' 2>/dev/null | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); print('sli:node_availability:bool =', [r['value'][1] for r in d['data']['result']])" || true
+      - |
+        echo "--- Alertmanager Watchdog ---"
+        kubectl -n {{.MONITORING_NS}} exec -it \
+          $(kubectl -n {{.MONITORING_NS}} get pod -l app.kubernetes.io/name=alertmanager --no-headers -o custom-columns=':metadata.name' | head -1) \
+          -- wget -qO- 'http://localhost:9093/api/v2/alerts?filter=alertname%3DWatchdog' 2>/dev/null | \
+          python3 -c "import sys,json; d=json.load(sys.stdin); print('Watchdog alerts firing:', len(d))" || true
+
   monitoring:ui:
     desc: "Grafana UI を http://localhost:3000 に port-forward（Ctrl-C で停止）"
     deps: [ctx:check]

@@ -55,9 +55,9 @@
 |---|---|---|
 | Hubble Relay | ✅ | クラスタ内ネットワークフロー収集 |
 | Hubble UI | ✅ | ネットワークフローの可視化 |
-| kube-prometheus-stack | 🔲 | 全メトリクス収集・Grafana・Alertmanager |
-| Grafana Cloud | 🔲 | SLI メトリクス長期保存・外部ダッシュボード |
-| Healthchecks.io | 🔲 | クラスタ全断の死活検知（Dead man's switch）|
+| kube-prometheus-stack | ✅ | 全メトリクス収集・Grafana・Alertmanager |
+| Grafana Cloud | ✅ | SLI メトリクス長期保存・外部ダッシュボード |
+| Healthchecks.io | ✅ | クラスタ全断の死活検知（Dead man's switch）|
 | Cloudflare Workers | 🔲 | 主要エンドポイントの外形監視 |
 
 ---
@@ -323,7 +323,7 @@ Flux 自身の GitHub 認証情報（deploy key）は `flux bootstrap` が生成
 
 ---
 
-## 監視アーキテクチャ 🔲
+## 監視アーキテクチャ ✅（Cloudflare Workers 外形監視のみ 🔲）
 
 ### 設計方針
 
@@ -434,10 +434,10 @@ Cloudflare Workers
 
 ```
 1Password（yh-cluster vault）
-  ├── grafana-cloud-credentials   → ESO → Secret（remoteWrite 認証）
-  ├── grafana-admin-password      → ESO → Secret（in-cluster Grafana 管理者）
-  ├── healthchecks-url            → ESO → Secret（Alertmanager Watchdog webhook）
-  └── discord-webhook-url         → ESO → Secret（Alertmanager 通知先）
+  ├── monitoring-grafana-cloud    → ESO → Secret（username: Prometheus instance ID, password: Cloud Access Policy token）
+  ├── monitoring-grafana-admin    → ESO → Secret（username + password: Grafana 管理者認証情報）
+  ├── monitoring-healthchecks     → ESO → Secret（webhook-url: Healthchecks.io ping URL）
+  └── monitoring-discord          → ESO → Secret（webhook-url: Discord Slack-compat URL /slack suffix 含む）
 ```
 
 ### GitOps 配置
@@ -447,22 +447,26 @@ infrastructure/
   monitoring/
     controller/
       namespace.yaml
+      sa.yaml                       # helm-monitoring SA + scoped CRB + ns admin RoleBinding
       helmrepository.yaml           # prometheus-community
-      helmrelease.yaml              # kube-prometheus-stack
-      kustomization.yaml            #   scrape interval / remoteWrite / Alertmanager 設定込み
-    config/
-      prometheusrule-sli.yaml       # Recording Rules + アラート定義
-      externalsecret-grafana-cloud.yaml
+      helmrelease.yaml              # kube-prometheus-stack（Alertmanager config / remoteWrite 設定込み）
       externalsecret-grafana-admin.yaml
+      externalsecret-grafana-cloud.yaml
       externalsecret-healthchecks.yaml
       externalsecret-discord.yaml
+      kustomization.yaml
+    config/
+      prometheusrule-sli.yaml       # sli:* Recording Rules（5種）
+      prometheusrule-alerts.yaml    # クラスタアラート（Watchdog / Node / Pod / 証明書 / リソース）
+      networkpolicy-metrics.yaml    # CiliumNetworkPolicy: intra-ns 自由 / 他 ns は Prometheus のみ scrape 許可
       certificate.yaml              # grafana.yh.k8s.tsuru.run TLS
-      gateway.yaml
-      httproute.yaml
+      gateway.yaml                  # Gateway（cilium, 192.168.1.100:443）
+      httproute.yaml                # HTTPRoute → monitoring-grafana:80
       kustomization.yaml
 
 clusters/yh-cluster/
-  monitoring.yaml                   # dependsOn: longhorn / external-secrets-config / cert-manager-config
+  monitoring.yaml                   # 2 Kustomization（controller + config）
+                                    # dependsOn: flux-rbac / longhorn / external-secrets-config / cert-manager-config
 ```
 
 ---

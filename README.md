@@ -49,6 +49,8 @@ infrastructure/
 - [x] RBAC/OIDC Phase B-Next/3e — flux-{cilium,external-secrets,longhorn,cert-manager,dex} controller SA x5 の権限縮小（cluster-admin 全剥離 / scoped role + bind 限定）
 - [x] RBAC/OIDC Phase C — Break-Glass kubeconfig 1Password 退避（`yh-cluster-break-glass-kubeconfig` document）/ ローカル admin context 全削除
 - [x] RBAC/OIDC Phase D — ValidatingAdmissionPolicy で escalate/impersonate/cluster-admin 権限昇格を admission レベルで阻止（`restrict-rbac-rules` + `restrict-rbac-binding`、Deny mode）
+- [x] Monitoring M1-M5 — kube-prometheus-stack + Grafana Cloud remoteWrite（sli:* のみ）+ Healthchecks.io heartbeat + Discord アラート + `grafana.yh.k8s.tsuru.run` TLS UI
 
 ### Next
+- [ ] Cloudflare Tunnel（cloudflared）+ Workers 外形監視
 - [ ] アプリケーションワークロードの追加
