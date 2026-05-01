@@ -42,6 +42,11 @@ spec:
     prometheus:
       prometheusSpec:
         retention: 7d
+        # Resend firing alerts to Alertmanager every 30s (default 1m).
+        # Needed to achieve ~30-60s Healthchecks.io heartbeat cadence.
+        additionalArgs:
+          - name: rules.alert.resend-delay
+            value: 30s
         storageSpec:
           volumeClaimTemplate:
             spec:
@@ -91,8 +96,8 @@ spec:
             - matchers:
                 - alertname = Watchdog
               receiver: healthchecks
-              group_interval: 30s
-              repeat_interval: 1m
+              group_interval: 15s
+              repeat_interval: 30s
               continue: false
             - matchers:
                 - severity = critical
