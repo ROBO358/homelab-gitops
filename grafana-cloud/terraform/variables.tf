@@ -19,3 +19,29 @@ variable "prometheus_datasource_name" {
   type        = string
   # Grafana Cloud default pattern: grafanacloud-<orgname>-prom
 }
+
+variable "connections_api_access_token" {
+  description = <<-EOT
+    Grafana Cloud Access Policy token with integration-management:read/write scopes.
+    Create at: Grafana Cloud > My Account > Access Policies
+    Store in 1Password: grafana-cloud-terraform / connections_token
+  EOT
+  type      = string
+  sensitive = true
+}
+
+variable "stack_id" {
+  description = "Grafana Cloud stack numeric ID (shown in My Account > Your Stacks > stack URL)"
+  type        = string
+}
+
+variable "healthchecks_project_uuid" {
+  description = "Healthchecks.io project UUID (Project Settings > API Access)"
+  type        = string
+}
+
+variable "healthchecks_api_key" {
+  description = "Healthchecks.io read-only API key (Project Settings > API Access)"
+  type        = string
+  sensitive   = true
+}

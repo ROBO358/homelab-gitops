@@ -929,6 +929,10 @@ tasks:
         export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url --reveal)
         export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token --reveal)
         export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name --reveal)
+        export TF_VAR_connections_api_access_token=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field connections_token --reveal)
+        export TF_VAR_stack_id=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field stack_id --reveal)
+        export TF_VAR_healthchecks_project_uuid=$(op.exe item get "monitoring-healthchecks" --vault yh-cluster --field project-uuid --reveal)
+        export TF_VAR_healthchecks_api_key=$(op.exe item get "monitoring-healthchecks" --vault yh-cluster --field api-key --reveal)
         terraform plan
 
   grafana-cloud:apply:
@@ -940,6 +944,10 @@ tasks:
         export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url --reveal)
         export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token --reveal)
         export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name --reveal)
+        export TF_VAR_connections_api_access_token=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field connections_token --reveal)
+        export TF_VAR_stack_id=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field stack_id --reveal)
+        export TF_VAR_healthchecks_project_uuid=$(op.exe item get "monitoring-healthchecks" --vault yh-cluster --field project-uuid --reveal)
+        export TF_VAR_healthchecks_api_key=$(op.exe item get "monitoring-healthchecks" --vault yh-cluster --field api-key --reveal)
         terraform apply -auto-approve
 
   grafana-cloud:destroy:
@@ -951,6 +959,10 @@ tasks:
         export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url --reveal)
         export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token --reveal)
         export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name --reveal)
+        export TF_VAR_connections_api_access_token=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field connections_token --reveal)
+        export TF_VAR_stack_id=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field stack_id --reveal)
+        export TF_VAR_healthchecks_project_uuid=$(op.exe item get "monitoring-healthchecks" --vault yh-cluster --field project-uuid --reveal)
+        export TF_VAR_healthchecks_api_key=$(op.exe item get "monitoring-healthchecks" --vault yh-cluster --field api-key --reveal)
         terraform destroy
 
   # ────────────────────────────────

@@ -8,5 +8,4 @@ resources:
   - externalsecret-grafana-admin.yaml
   - externalsecret-grafana-cloud.yaml
   - externalsecret-healthchecks.yaml
-  - externalsecret-healthchecks-scrape.yaml
   - externalsecret-discord.yaml

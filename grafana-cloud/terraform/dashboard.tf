@@ -100,8 +100,8 @@ locals {
             unit = "short"
             mappings = [
               { type = "value", options = {
-                "0" = { text = "Down",  color = "red"   }
-                "1" = { text = "Up",    color = "green" }
+                "0" = { text = "Down", color = "red"   }
+                "1" = { text = "Up",   color = "green" }
               }}
             ]
             thresholds = {
