@@ -919,22 +919,22 @@ tasks:
     desc: "Deploy yh-probe Cloudflare Worker (requires wrangler login)"
     dir: workers/probe
     cmds:
-      - wrangler deploy
+      - npx wrangler deploy
 
   worker:secret:
     desc: "Set DISCORD_WEBHOOK_URL secret for yh-probe Worker (reads from stdin)"
     dir: workers/probe
     cmds:
-      - wrangler secret put DISCORD_WEBHOOK_URL
+      - npx wrangler secret put DISCORD_WEBHOOK_URL
 
   worker:tail:
     desc: "Tail live logs from yh-probe Cloudflare Worker"
     dir: workers/probe
     cmds:
-      - wrangler tail
+      - npx wrangler tail
 
   worker:test:
-    desc: "Trigger yh-probe Worker via HTTP and print result (requires wrangler login)"
+    desc: "Trigger yh-probe Worker via HTTP and print result"
     dir: workers/probe
     cmds:
-      - wrangler dev --test-scheduled 2>/dev/null || wrangler dev
+      - curl -s https://yh-probe.rroobboo-358-cloudflare.workers.dev
