@@ -66,18 +66,19 @@ async function notifyDiscord(webhookUrl, failures) {
     console.error("DISCORD_WEBHOOK_URL secret is not set");
     return;
   }
+  // Use Slack-compatible format: the webhook URL ends in /slack (same as Alertmanager)
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        embeds: [
+        text: "Probe failure detected",
+        attachments: [
           {
-            title: "Probe failure detected",
-            description: failures.join("\n"),
-            color: 0xed4245,
-            timestamp: new Date().toISOString(),
-            footer: { text: "yh-cluster / Cloudflare Workers probe" },
+            color: "danger",
+            title: "yh-cluster / Cloudflare Workers probe",
+            text: failures.join("\n"),
+            ts: Math.floor(Date.now() / 1000),
           },
         ],
       }),

@@ -1,13 +1,14 @@
 name = "yh-probe"
 main = "index.js"
 compatibility_date = "2025-01-01"
+workers_dev = true
 
 # Probe every 5 minutes
 [triggers]
 crons = ["*/5 * * * *"]
 
 # Set the Discord webhook URL as a secret (not in this file):
-#   wrangler secret put DISCORD_WEBHOOK_URL
+#   task worker:secret
 #
 # Source the URL from 1Password: monitoring-discord / webhook-url
-# Use the base URL without /slack suffix (Workers sends native Discord JSON).
+# The URL already includes /slack suffix — Workers uses Slack-compatible JSON format.
