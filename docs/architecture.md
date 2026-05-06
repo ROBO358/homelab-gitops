@@ -58,7 +58,7 @@
 | kube-prometheus-stack | ✅ | 全メトリクス収集・Grafana・Alertmanager |
 | Grafana Cloud | ✅ | SLI メトリクス長期保存・外部ダッシュボード |
 | Healthchecks.io | ✅ | クラスタ全断の死活検知（Dead man's switch）|
-| Cloudflare Workers | ✅ | 主要エンドポイントの外形監視（grafana-probe / dex-probe、5 分ごと）|
+| Cloudflare Workers | ✅ | 主要エンドポイントの外形監視（grafana-yh-k8s / dex-yh-k8s、5 分ごと）|
 
 ---
 

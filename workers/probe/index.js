@@ -1,15 +1,15 @@
-// Cron probe: check grafana-probe.tsuru.run and dex-probe.tsuru.run every 5 minutes.
+// Cron probe: check grafana-yh-k8s.tsuru.run and dex-yh-k8s.tsuru.run every 5 minutes.
 // On failure, sends a Discord embed notification via DISCORD_WEBHOOK_URL secret.
 
 const ENDPOINTS = [
   {
     name: "Grafana",
-    url: "https://grafana-probe.tsuru.run/api/health",
+    url: "https://grafana-yh-k8s.tsuru.run/api/health",
     expectStatus: 200,
   },
   {
     name: "Dex OIDC",
-    url: "https://dex-probe.tsuru.run/.well-known/openid-configuration",
+    url: "https://dex-yh-k8s.tsuru.run/.well-known/openid-configuration",
     expectStatus: 200,
   },
 ];
