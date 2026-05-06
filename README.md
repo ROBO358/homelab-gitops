@@ -54,6 +54,5 @@ infrastructure/
 - [x] Cloudflare Workers 外形監視 — `grafana-probe.tsuru.run` / `dex-probe.tsuru.run` を 5 分ごとに probe、障害時 Discord 通知（`workers/probe/`、`task worker:deploy`）
 
 ### Next
-- [ ] Cloudflare Workers シークレット設定（`task worker:secret` で DISCORD_WEBHOOK_URL を Workers に登録）
 - [ ] シークレットローテーション（grafana-cloud / cloudflare-api-token / dex-github-client / cloudflared-tunnel-token / grafana-admin の定期更新・自動化）
 - [ ] アプリケーションワークロードの追加
