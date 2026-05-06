@@ -69,7 +69,7 @@ locals {
           }
         }
         options = { reduceOptions = { calcs = ["lastNotNull"] }, orientation = "auto", colorMode = "background" }
-        targets = [{ datasource = local.ds_ref, expr = "sli:certificate_expiry_days", legendFormat = "{{exported_namespace}}/{{name}}", refId = "A" }]
+        targets = [{ datasource = local.ds_ref, expr = "sli:certificate_expiry_days", legendFormat = "{{exported_namespace}}/{{name}}", refId = "A", instant = true }]
       },
       {
         id    = 4
