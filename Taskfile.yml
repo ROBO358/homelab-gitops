@@ -912,6 +912,48 @@ tasks:
       - kubectl -n {{.MONITORING_NS}} port-forward svc/monitoring-grafana 3000:80
 
   # ────────────────────────────────
+  # grafana-cloud: Terraform-managed dashboards & alerts
+  # ────────────────────────────────
+
+  grafana-cloud:init:
+    desc: "terraform init for grafana-cloud (run once)"
+    dir: grafana-cloud/terraform
+    cmds:
+      - terraform init
+
+  grafana-cloud:plan:
+    desc: "terraform plan for grafana-cloud dashboards & alerts"
+    dir: grafana-cloud/terraform
+    cmds:
+      - |
+        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url)
+        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token)
+        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name)
+        terraform plan
+
+  grafana-cloud:apply:
+    desc: "terraform apply for grafana-cloud dashboards & alerts"
+    dir: grafana-cloud/terraform
+    prompt: "This will create/update Grafana Cloud resources. Continue?"
+    cmds:
+      - |
+        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url)
+        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token)
+        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name)
+        terraform apply -auto-approve
+
+  grafana-cloud:destroy:
+    desc: "terraform destroy for grafana-cloud (removes dashboards & alerts)"
+    dir: grafana-cloud/terraform
+    prompt: "This will DELETE all Grafana Cloud resources managed by Terraform. Continue?"
+    cmds:
+      - |
+        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url)
+        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token)
+        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name)
+        terraform destroy
+
+  # ────────────────────────────────
   # worker: Cloudflare Workers probe
   # ────────────────────────────────
 

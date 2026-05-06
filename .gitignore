@@ -1,2 +1,7 @@
 # Wrangler local cache and account credentials
 .wrangler/
+
+# Terraform local state and provider cache
+**/.terraform/
+*.tfstate
+*.tfstate.backup
