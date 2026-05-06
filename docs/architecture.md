@@ -45,7 +45,7 @@
 | Cilium Gateway API | ✅ | HTTP/HTTPS ルーティング（Envoy ベース）|
 | cert-manager 1.16.2 | ✅ | TLS 証明書自動発行（Let's Encrypt DNS-01 / Cloudflare）|
 | Dex v2 | ✅ | GitHub OIDC bridge（`dex.yh.k8s.tsuru.run`）|
-| cloudflared | 🔲 | Cloudflare Tunnel によるインターネット公開 |
+| cloudflared 0.1.2 | ✅ | Cloudflare Tunnel によるインターネット公開 |
 | Longhorn 1.11.1 | ✅ | 永続ストレージ（worker NVMe /var/mnt/longhorn、3x レプリケーション、default StorageClass）|
 | External Secrets Operator | ✅ | 1Password SDK で yh-cluster vault のシークレットを同期 |
 
@@ -58,7 +58,7 @@
 | kube-prometheus-stack | ✅ | 全メトリクス収集・Grafana・Alertmanager |
 | Grafana Cloud | ✅ | SLI メトリクス長期保存・外部ダッシュボード |
 | Healthchecks.io | ✅ | クラスタ全断の死活検知（Dead man's switch）|
-| Cloudflare Workers | 🔲 | 主要エンドポイントの外形監視 |
+| Cloudflare Workers | ✅ | 主要エンドポイントの外形監視（grafana-probe / dex-probe、5 分ごと）|
 
 ---
 
@@ -204,7 +204,7 @@ HTTPRoute マッチング
 Service → Pod
 ```
 
-### インターネット公開（Cloudflare Tunnel）🔲
+### インターネット公開（Cloudflare Tunnel）✅
 
 ```
 インターネットユーザー
@@ -230,7 +230,7 @@ Service → Pod
 - cloudflared は Gateway の **ClusterIP** を向く（LoadBalancer IP は不使用）
   - L2 Announcements の障害が外部公開に波及しない
   - クラスタ内で通信が完結し不要なネットワークラウンドトリップがない
-- TLS は Cloudflare が終端。LAN アクセスの TLS は cert-manager（🔲）で別途管理
+- TLS は Cloudflare が終端。LAN アクセスの TLS は cert-manager（✅）で別途管理
 
 ### Pod 間通信 ✅
 
@@ -279,22 +279,23 @@ GitRepository (flux-system/flux-system)
         │     └── dex-config       →  infrastructure/dex/config/
         │           ExternalSecret（GitHub OAuth client）+ Certificate（LE prod）
         │           + Gateway（dex-gateway、LB IP 192.168.1.100）+ HTTPRoute
-        └── rbac-humans.yaml           # Kustomization: rbac-humans
-              └── rbac-humans      →  infrastructure/rbac-humans/
-                    ClusterRoleBinding: ROBO358(OIDC) → view
-```
-
-### cloudflared 導入後 🔲
-
-```
-GitRepository (flux-system/flux-system)
-  └── Kustomization: flux-system  →  clusters/yh-cluster/
-        ├── flux-system/
-        ├── gateway-api-crds.yaml
-        ├── cilium.yaml
-        ├── external-secrets.yaml      # 既存
-        └── cloudflared.yaml           # Kustomization: cloudflared
-              Deployment + ExternalSecret（ESO 経由で tunnel token を 1Password から取得）
+        ├── rbac-humans.yaml           # Kustomization: rbac-humans
+        │     └── rbac-humans      →  infrastructure/rbac-humans/
+        │           ClusterRoleBinding: ROBO358(OIDC) → view
+        ├── cloudflared.yaml           # Kustomization: cloudflared（dependsOn: flux-rbac, external-secrets-config）
+        │     └── cloudflared      →  infrastructure/cloudflared/controller/
+        │           Namespace + HelmRepository + HelmRelease（cloudflared 0.1.2）
+        │           ExternalSecret（tunnel token）→ cloudflared-tunnel-credentials Secret
+        ├── monitoring.yaml            # Kustomization: monitoring + monitoring-config
+        │     ├── monitoring       →  infrastructure/monitoring/controller/
+        │     │     Namespace + SA + HelmRepository + HelmRelease（kube-prometheus-stack 84.4.0）
+        │     │     ExternalSecret x4（grafana-admin / grafana-cloud / healthchecks / discord）
+        │     └── monitoring-config  →  infrastructure/monitoring/config/
+        │           PrometheusRule x2（sli recording rules + alerts）
+        │           CiliumNetworkPolicy（/metrics は Prometheus SA からのみ）
+        │           Certificate + Gateway + HTTPRoute（grafana.yh.k8s.tsuru.run）
+        └── policies.yaml              # Kustomization: policies（ValidatingAdmissionPolicy Phase D）
+              └── policies         →  infrastructure/policies/
 ```
 
 アプリごとの `HTTPRoute` / `Gateway` リソースは各アプリの namespace に配置する。
@@ -309,9 +310,13 @@ GitRepository (flux-system/flux-system)
   │     └── "Service Account Auth Token: yh-cluster"（ESO 認証用 SA Token）
   │           ※ task eso:bootstrap-secret で cluster に手動投入（Flux 管理外）
   └── Vault: yh-cluster（クラスタ固有シークレット）
-        ├── cloudflared tunnel token（🔲 cloudflared 導入時）
-        ├── その他アプリシークレット
-        └── ...
+        ├── cloudflared-tunnel-credentials（cloudflared Tunnel 認証トークン）
+        ├── monitoring-grafana-admin（Grafana 管理者パスワード）
+        ├── monitoring-grafana-cloud（Grafana Cloud remoteWrite: instance ID + API token）
+        ├── monitoring-healthchecks（Healthchecks.io: webhook URL + project UUID + API key）
+        ├── monitoring-discord（Discord Incoming Webhook URL）
+        ├── grafana-cloud-terraform（Terraform 用 Grafana SA token + connections token + stack ID）
+        └── その他アプリシークレット
 
 External Secrets Operator（ESO v2.3.0）
   └── ClusterSecretStore: onepassword（1Password SDK provider）
@@ -323,7 +328,7 @@ Flux 自身の GitHub 認証情報（deploy key）は `flux bootstrap` が生成
 
 ---
 
-## 監視アーキテクチャ ✅（Cloudflare Workers 外形監視のみ 🔲）
+## 監視アーキテクチャ ✅
 
 ### 設計方針
 
@@ -534,6 +539,9 @@ kustomize-controller pod (SA: kustomize-controller)
 | dex | flux-dex | flux-dex-applier → cluster-admin |
 | dex-config | flux-dex-config | flux-dex-config-applier → cluster-admin |
 | rbac-humans | flux-rbac-humans | flux-rbac-humans-applier → cluster-admin |
+| cloudflared | flux-cloudflared | flux-cloudflared-applier → cluster-admin |
+| monitoring | flux-monitoring | flux-monitoring-applier → cluster-admin |
+| monitoring-config | flux-monitoring-config | flux-monitoring-config-applier → cluster-admin |
 
 全 SA は `flux-system` namespace に配置し、label `app.kubernetes.io/part-of: flux-rbac` で識別する。
 
@@ -552,6 +560,8 @@ helm-controller は各 HelmRelease の `spec.serviceAccountName` を impersonate
 | dex | dex | helm-dex | helm-dex-applier → cluster-admin |
 | external-secrets | external-secrets | helm-external-secrets | helm-external-secrets-applier → cluster-admin |
 | longhorn | longhorn-system | helm-longhorn | helm-longhorn-applier → cluster-admin |
+| cloudflared | cloudflared | helm-cloudflared | helm-cloudflared-applier → cluster-admin |
+| kube-prometheus-stack | monitoring | helm-monitoring | helm-monitoring-applier → cluster-admin |
 
 各 SA は `infrastructure/<chart>/controller/sa.yaml` で定義し、component の controller Kustomization が管理する（flux-rbac 管理外）。理由: component 自身が namespace を作成するため、flux-rbac 実行時点では namespace が存在せず SA 作成が失敗する。
 
