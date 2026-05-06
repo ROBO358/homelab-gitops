@@ -926,9 +926,9 @@ tasks:
     dir: grafana-cloud/terraform
     cmds:
       - |
-        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url)
-        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token)
-        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name)
+        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url --reveal)
+        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token --reveal)
+        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name --reveal)
         terraform plan
 
   grafana-cloud:apply:
@@ -937,9 +937,9 @@ tasks:
     prompt: "This will create/update Grafana Cloud resources. Continue?"
     cmds:
       - |
-        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url)
-        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token)
-        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name)
+        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url --reveal)
+        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token --reveal)
+        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name --reveal)
         terraform apply -auto-approve
 
   grafana-cloud:destroy:
@@ -948,9 +948,9 @@ tasks:
     prompt: "This will DELETE all Grafana Cloud resources managed by Terraform. Continue?"
     cmds:
       - |
-        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url)
-        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token)
-        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name)
+        export TF_VAR_grafana_url=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field url --reveal)
+        export TF_VAR_grafana_auth=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field token --reveal)
+        export TF_VAR_prometheus_datasource_name=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field datasource_name --reveal)
         terraform destroy
 
   # ────────────────────────────────
