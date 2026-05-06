@@ -92,9 +92,32 @@ locals {
       },
       {
         id    = 5
-        title = "Healthchecks.io — Check Status"
+        title = "Healthchecks.io — Checks Down"
         type  = "stat"
-        gridPos = { h = 6, w = 24, x = 0, y = 16 }
+        gridPos = { h = 4, w = 4, x = 0, y = 16 }
+        fieldConfig = {
+          defaults = {
+            unit = "short"
+            thresholds = {
+              mode  = "absolute"
+              steps = [{ color = "green", value = null }, { color = "red", value = 1 }]
+            }
+          }
+        }
+        options = {
+          reduceOptions = { calcs = ["lastNotNull"] }
+          orientation   = "auto"
+          colorMode     = "background"
+          textMode      = "auto"
+          graphMode     = "none"
+        }
+        targets = [{ datasource = local.ds_ref, expr = "hc_checks_down_total", legendFormat = "Down", refId = "A", instant = true }]
+      },
+      {
+        id    = 6
+        title = "Healthchecks.io — Current Status"
+        type  = "stat"
+        gridPos = { h = 4, w = 20, x = 4, y = 16 }
         fieldConfig = {
           defaults = {
             unit = "short"
@@ -117,6 +140,36 @@ locals {
           textMode      = "value_and_name"
         }
         targets = [{ datasource = local.ds_ref, expr = "hc_check_up", legendFormat = "{{name}}", refId = "A", instant = true }]
+      },
+      {
+        id    = 7
+        title = "Healthchecks.io — Availability History"
+        type  = "state-timeline"
+        gridPos = { h = 8, w = 24, x = 0, y = 20 }
+        fieldConfig = {
+          defaults = {
+            mappings = [
+              { type = "value", options = {
+                "0" = { text = "Down", color = "red",   index = 0 }
+                "1" = { text = "Up",   color = "green", index = 1 }
+              }}
+            ]
+            thresholds = {
+              mode  = "absolute"
+              steps = [{ color = "red", value = null }, { color = "green", value = 1 }]
+            }
+            color = { mode = "thresholds" }
+          }
+        }
+        options = {
+          mergeValues = true
+          showValue   = "auto"
+          alignValue  = "center"
+          rowHeight   = 0.9
+          legend      = { displayMode = "list", placement = "bottom" }
+          tooltip     = { mode = "single" }
+        }
+        targets = [{ datasource = local.ds_ref, expr = "hc_check_up", legendFormat = "{{name}}", refId = "A" }]
       },
     ]
   }
