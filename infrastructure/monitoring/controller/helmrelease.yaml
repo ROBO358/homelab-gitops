@@ -63,6 +63,7 @@ spec:
                 requests:
                   storage: 15Gi
         additionalScrapeConfigsSecret:
+          enabled: true
           name: healthchecks-scrape-config
           key: scrape-config.yaml
 
