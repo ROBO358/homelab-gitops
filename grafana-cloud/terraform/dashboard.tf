@@ -90,6 +90,34 @@ locals {
         options = { tooltip = { mode = "single" }, legend = { displayMode = "list", placement = "bottom" } }
         targets = [{ datasource = local.ds_ref, expr = "sli:pod_restart_rate:rate5m", legendFormat = "{{namespace}}/{{pod}}", refId = "A" }]
       },
+      {
+        id    = 5
+        title = "Healthchecks.io — Check Status"
+        type  = "stat"
+        gridPos = { h = 6, w = 24, x = 0, y = 16 }
+        fieldConfig = {
+          defaults = {
+            unit = "short"
+            mappings = [
+              { type = "value", options = {
+                "0" = { text = "Down",  color = "red"   }
+                "1" = { text = "Up",    color = "green" }
+              }}
+            ]
+            thresholds = {
+              mode  = "absolute"
+              steps = [{ color = "red", value = null }, { color = "green", value = 1 }]
+            }
+          }
+        }
+        options = {
+          reduceOptions = { calcs = ["lastNotNull"] }
+          orientation   = "auto"
+          colorMode     = "background"
+          textMode      = "value_and_name"
+        }
+        targets = [{ datasource = local.ds_ref, expr = "hc_check_up", legendFormat = "{{name}}", refId = "A", instant = true }]
+      },
     ]
   }
 }

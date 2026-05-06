@@ -62,7 +62,11 @@ spec:
               resources:
                 requests:
                   storage: 15Gi
-        # remoteWrite only sli:* recording rules to Grafana Cloud (14d retention)
+        additionalScrapeConfigsSecret:
+          name: healthchecks-scrape-config
+          key: scrape-config.yaml
+
+        # remoteWrite sli:* recording rules + hc_* (Healthchecks.io) to Grafana Cloud (14d retention)
         remoteWrite:
           - url: https://prometheus-prod-49-prod-ap-northeast-0.grafana.net/api/prom/push
             basicAuth:
@@ -74,7 +78,7 @@ spec:
                 key: password
             writeRelabelConfigs:
               - sourceLabels: [__name__]
-                regex: 'sli:.*'
+                regex: 'sli:.*|hc_.*'
                 action: keep
 
     # ── Grafana ─────────────────────────────────────────────
