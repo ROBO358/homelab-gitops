@@ -38,6 +38,13 @@ spec:
     kubeProxy:
       enabled: false
 
+    # Talos では kube-scheduler / kube-controller-manager が 127.0.0.1 にバインドされており
+    # Prometheus から到達不能なため、ServiceMonitor を無効化して TargetDown アラートを抑制する
+    kubeScheduler:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+
     # ── Prometheus ──────────────────────────────────────────
     prometheus:
       prometheusSpec:
