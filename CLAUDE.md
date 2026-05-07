@@ -72,7 +72,7 @@ infrastructure/
   rbac-humans/           # 人間ユーザー向け RBAC（OIDC subject → ClusterRole binding）
                          # ClusterRoleBinding: ROBO358(preferred_username) → view
   flux-rbac/             # Flux RBAC（per-Kustomization SA + impersonator）
-                         # ClusterRole flux-impersonator / flux-<name> SA x11 / cluster-admin binding
+                         # ClusterRole flux-impersonator / flux-<name> SA x15 / scoped ClusterRole binding
   cilium/controller/sa.yaml          # helm-cilium SA + binding（kube-system、helm-controller が impersonate）
   cert-manager/controller/sa.yaml    # helm-cert-manager SA + binding（cert-manager）
   dex/controller/sa.yaml             # helm-dex SA + binding（dex）

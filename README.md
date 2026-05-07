@@ -50,12 +50,11 @@ infrastructure/
 - [x] RBAC/OIDC Phase C — Break-Glass kubeconfig 1Password 退避（`yh-cluster-break-glass-kubeconfig` document）/ ローカル admin context 全削除
 - [x] RBAC/OIDC Phase D — ValidatingAdmissionPolicy で escalate/impersonate/cluster-admin 権限昇格を admission レベルで阻止（`restrict-rbac-rules` + `restrict-rbac-binding`、Deny mode）
 - [x] Monitoring M1-M5 — kube-prometheus-stack + Grafana Cloud remoteWrite（sli:* のみ）+ Healthchecks.io heartbeat + Discord アラート + `grafana.yh.k8s.tsuru.run` TLS UI
-- [x] Cloudflare Tunnel — cloudflare-tunnel-remote Helm chart + ESO で tunnel token 管理
-- [x] Cloudflare Workers 外形監視 — `grafana-probe.tsuru.run` / `dex-probe.tsuru.run` を 5 分ごとに probe、障害時 Discord 通知（`workers/probe/`、`task worker:deploy`）
+- [x] Cloudflare Workers 外形監視 — `grafana-yh-k8s.tsuru.run` / `dex-yh-k8s.tsuru.run` を 5 分ごとに probe、障害時 Discord 通知（`workers/probe/`、`task worker:deploy`）
 - [x] Cloudflare Access — GitHub OAuth 既定保護（`*-yh-k8s.tsuru.run` wildcard app + 自分のみ allow policy）Terraform 管理（`cloudflare-zero-trust/terraform/`、`task cf-access:apply`）
+- [x] Cloudflare Tunnel — Gateway API 化（pl4nty/cloudflare-kubernetes-gateway v0.8.2）既存 Tunnel adopt / 各 app が HTTPRoute で宣言 / DNS CNAME 自動作成 / VAP でホスト名 suffix 強制 / Access wildcard で既定保護
 
 ### Next
-- [ ] Cloudflare Tunnel Gateway API 化 — pl4nty/cloudflare-kubernetes-gateway で既存 Tunnel を adopt し、各 app が HTTPRoute で自前ルーティングを宣言（DNS CNAME 自動作成、VAP でホスト名 suffix 強制）
 - [ ] Cloudflare Access の per-app 制御を K8s manifest 化 — 現状 Terraform 専用（`cloudflare-zero-trust/terraform/apps/`）のため、HTTPRoute 周辺で宣言的に書けるよう custom controller / annotation pattern を検討
 - [ ] Gateway / HTTPRoute と Cloudflare Access のライフサイクル連動 — 現状 Access app は Gateway/HTTPRoute 削除後も残存（独立リソース）。manifest 削除時に自動 cleanup する仕組みを設計
 - [ ] シークレットローテーション（grafana-cloud / cloudflare-api-token / dex-github-client / cloudflare-access-terraform-token の定期更新・自動化）
