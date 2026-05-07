@@ -527,7 +527,11 @@ Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare 
 - `securityContext.fsGroup: 101`（Longhorn PVC は root 所有なので pod spec に fsGroup が必要）
 - `/usr/share/nginx/html` を `emptyDir` でマウント（image 内は root 所有、entrypoint が書けない）
 - Longhorn など RWO PVC を使う場合は `rollingUpdate.maxSurge: 0` を設定すること（`maxSurge > 0` だと新 pod が古い pod より先に起動しようとして PVC attachment で deadlock）
-- `strategy.type: Recreate` は既存 Deployment への後付け変更が困難。`strategy` 未指定で作られた Deployment にはサーバーが `rollingUpdate` デフォルト値を所有しており、後から `type: Recreate` だけを SSA でパッチすると `rollingUpdate` が残ったまま Kubernetes のバリデーション（`type=Recreate` と `rollingUpdate` の共存禁止）に弾かれる。`maxSurge: 0` は `type: RollingUpdate` のまま同等の挙動を実現するため、この問題を回避できる
+- `strategy.type: Recreate` への後付け変更は、`rollingUpdate` の所有権によって扱いが異なる:
+  - **Flux が `rollingUpdate` を所有している場合**（manifest に `rollingUpdate` を明示して apply 済み）: `type: Recreate` + `rollingUpdate: null` で切り替え可能
+  - **サーバーが `rollingUpdate` を所有している場合**（`strategy` 未指定で作成した Deployment）: `kubectl patch deploy <name> -n <ns> --type=json -p='[{"op":"remove","path":"/spec/strategy/rollingUpdate"}]'` で除去してから manifest を `type: Recreate` に変更する
+  - **新規 app**: 最初の apply 時に `strategy` を明示しておけばサーバーがデフォルト値を書き込まないため、後からいつでも自由に変更できる
+  - `maxSurge: 0` は上記の手順を踏まずに同等の挙動を実現するための代替手段（`type: RollingUpdate` のまま）
 
 ## インフラ追加の手順
 
