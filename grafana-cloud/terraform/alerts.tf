@@ -8,7 +8,7 @@ resource "grafana_rule_group" "sli" {
   # no_data_state = "Alerting" がトリガー条件（absent() 相当）
   rule {
     name           = "RemoteWriteAbsent"
-    condition      = "A"
+    condition      = "C"
     no_data_state  = "Alerting"
     exec_err_state = "Error"
     for            = "15m"
@@ -22,6 +22,8 @@ resource "grafana_rule_group" "sli" {
       source   = "grafana-cloud"
     }
 
+    # Query: min() aggregates multi-node series into a single scalar so Grafana
+    # can evaluate uniquely. no_data_state=Alerting fires when remoteWrite stops.
     data {
       ref_id         = "A"
       datasource_uid = data.grafana_data_source.prometheus.uid
@@ -30,10 +32,51 @@ resource "grafana_rule_group" "sli" {
         to   = 0
       }
       model = jsonencode({
-        expr          = "sli:node_availability:bool"
+        expr          = "min(sli:node_availability:bool)"
         intervalMs    = 1000
         maxDataPoints = 43200
         refId         = "A"
+      })
+    }
+
+    # Reduce: last value of A → single scalar
+    data {
+      ref_id         = "B"
+      datasource_uid = "__expr__"
+      relative_time_range {
+        from = 900
+        to   = 0
+      }
+      model = jsonencode({
+        type       = "reduce"
+        refId      = "B"
+        expression = "A"
+        reducer    = "last"
+        datasource = { type = "__expr__", uid = "__expr__" }
+      })
+    }
+
+    # Threshold: B < -1 is impossible (values are 0/1) → always Normal when data present.
+    # Alert fires only via no_data_state=Alerting when remoteWrite is absent.
+    data {
+      ref_id         = "C"
+      datasource_uid = "__expr__"
+      relative_time_range {
+        from = 900
+        to   = 0
+      }
+      model = jsonencode({
+        type       = "threshold"
+        refId      = "C"
+        expression = "B"
+        datasource = { type = "__expr__", uid = "__expr__" }
+        conditions = [{
+          evaluator       = { type = "lt", params = [-1] }
+          unloadEvaluator = { type = "gt", params = [-1] }
+          query           = { params = ["C"] }
+          reducer         = { type = "last", params = [] }
+          type            = "query"
+        }]
       })
     }
   }
