@@ -65,7 +65,10 @@ infrastructure/
     config/              # ExternalSecret（Cloudflare Token）/ ClusterIssuer x2
   dex/                   # OIDC IdP bridge（GitHub connector、dex.yh.k8s.tsuru.run）
     controller/          # Namespace / HelmRepository / HelmRelease
-    config/              # ExternalSecret（GitHub OAuth client）/ Certificate / Gateway / HTTPRoute
+    config/              # ExternalSecret（GitHub OAuth client）/ Certificate / Gateway / HTTPRoute / HTTPRoute(tunnel)
+  cloudflare-gateway/    # Cloudflare Tunnel via pl4nty/cloudflare-kubernetes-gateway v0.8.2
+    controller/          # Namespace (baseline) / GitRepository (pl4nty v0.8.2)
+    config/              # ExternalSecret(cloudflare) / GatewayClass / Gateway(yh-cluster) / ReferenceGrant
   rbac-humans/           # 人間ユーザー向け RBAC（OIDC subject → ClusterRole binding）
                          # ClusterRoleBinding: ROBO358(preferred_username) → view
   flux-rbac/             # Flux RBAC（per-Kustomization SA + impersonator）
@@ -428,6 +431,50 @@ homelab-gitops の Dex と連動しており、現在以下のフラグが設定
 | `oidc-groups-claim` | `groups` |
 
 Dex の issuer URL や static client ID を変更する場合は yh-talos 側の同フラグも合わせて更新し、`talhelper genconfig` + `talosctl apply-config` を実行すること。
+
+### 新サービスを Cloudflare Tunnel で公開する手順
+
+Cloudflare Tunnel 経由で `<svc>-yh-k8s.tsuru.run` を公開する最小手順。
+
+1. **HTTPRoute を app の config に追加**（VAP がホスト名末尾 `-yh-k8s.tsuru.run` を強制）
+   ```yaml
+   # infrastructure/<svc>/config/httproute-tunnel.yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: <svc>-tunnel
+     namespace: <svc-namespace>
+   spec:
+     parentRefs:
+       - name: yh-cluster
+         namespace: cloudflare-gateway
+     hostnames:
+       - <svc>-yh-k8s.tsuru.run
+     rules:
+       - backendRefs:
+           - name: <svc>
+             port: <port>
+   ```
+
+2. **`infrastructure/<svc>/config/kustomization.yaml` に追記**
+
+3. **`infrastructure/<svc>/config/` を管理する Flux SA の ClusterRole に `httproutes` CRUD が含まれていることを確認**
+
+4. **push** → pl4nty が自動で Tunnel ingress + DNS CNAME を upsert。**Cloudflare Access が wildcard `*-yh-k8s.tsuru.run` で自動保護**（追加設定不要 = 自分のみアクセス可）
+
+5. **Cilium ネットワークポリシーを更新** — app Pod に対する CiliumNetworkPolicy で `io.kubernetes.pod.namespace: cloudflare-gateway` からのアクセスを許可する（旧 `cloudflared` namespace からのルールを置き換え）
+
+6. **特定 app だけ public 化 / 緩和したい場合**:
+   `cloudflare-zero-trust/terraform/apps/<svc>.tf` に specific Access app + policy を追加して `task cf-access:apply`
+   （より具体的なホスト名一致が wildcard を上書き）
+
+### Access ライフサイクルの注意
+
+Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare アカウントリソースで、Terraform で管理する。K8s manifest の削除では消えない。
+
+- HTTPRoute / Gateway を削除しても Access app は残存 → 「最後の砦」として機能（Tunnel 再作成時も自動保護）
+- Access app の撤去は明示的に `cloudflare-zero-trust/terraform/apps/<svc>.tf` を削除して `task cf-access:apply`
+- Worker probe など Service Token 認証が必要なクライアントは `CF-Access-Client-Id` / `CF-Access-Client-Secret` ヘッダを付与すること（`workers/probe/index.js` 参照）
 
 ## インフラ追加の手順
 
