@@ -933,6 +933,7 @@ tasks:
         export TF_VAR_stack_id=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field stack_id --reveal)
         export TF_VAR_healthchecks_project_uuid=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field project-uuid --reveal)
         export TF_VAR_healthchecks_api_key=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field api-key --reveal)
+        export TF_VAR_discord_webhook_url=$(op.exe item get "monitoring-discord-grafana-cloud" --vault yh-cluster --field webhook-url --reveal)
         terraform plan
 
   grafana-cloud:apply:
@@ -948,6 +949,7 @@ tasks:
         export TF_VAR_stack_id=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field stack_id --reveal)
         export TF_VAR_healthchecks_project_uuid=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field project-uuid --reveal)
         export TF_VAR_healthchecks_api_key=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field api-key --reveal)
+        export TF_VAR_discord_webhook_url=$(op.exe item get "monitoring-discord-grafana-cloud" --vault yh-cluster --field webhook-url --reveal)
         terraform apply -auto-approve
 
   grafana-cloud:destroy:
@@ -963,6 +965,7 @@ tasks:
         export TF_VAR_stack_id=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field stack_id --reveal)
         export TF_VAR_healthchecks_project_uuid=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field project-uuid --reveal)
         export TF_VAR_healthchecks_api_key=$(op.exe item get "grafana-cloud-terraform" --vault yh-cluster --field api-key --reveal)
+        export TF_VAR_discord_webhook_url=$(op.exe item get "monitoring-discord-grafana-cloud" --vault yh-cluster --field webhook-url --reveal)
         terraform destroy
 
   # ────────────────────────────────
@@ -1031,6 +1034,15 @@ tasks:
     dir: workers/probe
     cmds:
       - npx wrangler secret put DISCORD_WEBHOOK_URL
+
+  worker:secret:discord:
+    desc: "Set DISCORD_WEBHOOK_URL from 1Password (monitoring-discord-worker / webhook-url)"
+    dir: workers/probe
+    cmds:
+      - |
+        url=$(op.exe item get "monitoring-discord-worker" --vault yh-cluster --field webhook-url --reveal)
+        echo "$url" | npx wrangler secret put DISCORD_WEBHOOK_URL
+        echo "DISCORD_WEBHOOK_URL set from 1Password."
 
   worker:secret:cf-access:
     desc: "Set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET on yh-probe Worker (run after task cf-access:apply)"

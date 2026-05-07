@@ -45,3 +45,13 @@ variable "healthchecks_api_key" {
   type        = string
   sensitive   = true
 }
+
+variable "discord_webhook_url" {
+  description = <<-EOT
+    Discord webhook URL for Grafana Cloud alert contact point (Discord native format — no /slack suffix).
+    Store in 1Password: monitoring-discord-grafana-cloud / webhook-url
+    Format: https://discord.com/api/webhooks/{id}/{token}
+  EOT
+  type      = string
+  sensitive = true
+}
