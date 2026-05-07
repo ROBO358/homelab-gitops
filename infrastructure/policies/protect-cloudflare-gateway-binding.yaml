@@ -1,0 +1,9 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: protect-cloudflare-gateway
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  policyName: protect-cloudflare-gateway
+  validationActions: [Deny]

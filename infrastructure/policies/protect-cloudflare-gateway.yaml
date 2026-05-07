@@ -1,0 +1,25 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: protect-cloudflare-gateway
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["DELETE"]
+        resources: ["gateways"]
+  matchConditions:
+    - name: target-cloudflare-gateway-ns
+      expression: "request.namespace == 'cloudflare-gateway'"
+    - name: not-flux-root
+      expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
+    - name: not-system-masters
+      expression: "!('system:masters' in request.userInfo.groups)"
+  validations:
+    - expression: "false"
+      message: "DELETE on Gateway in cloudflare-gateway namespace is restricted to flux-system-root SA and system:masters (prevents accidental Tunnel destruction via pl4nty finalizer)"
+      reason: Forbidden

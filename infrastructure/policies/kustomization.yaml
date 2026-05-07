@@ -5,3 +5,7 @@ resources:
   - restrict-rbac-rules-binding.yaml
   - restrict-rbac-binding.yaml
   - restrict-rbac-binding-binding.yaml
+  - restrict-tunnel-hostname.yaml
+  - restrict-tunnel-hostname-binding.yaml
+  - protect-cloudflare-gateway.yaml
+  - protect-cloudflare-gateway-binding.yaml

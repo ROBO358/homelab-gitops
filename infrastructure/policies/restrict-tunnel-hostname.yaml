@@ -1,0 +1,29 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-tunnel-hostname
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["httproutes"]
+  matchConditions:
+    # Only enforce on HTTPRoutes attached to the cloudflare GatewayClass
+    - name: has-cloudflare-parent
+      expression: |
+        object.spec.parentRefs.exists(p,
+          p.name == 'yh-cluster' &&
+          has(p.namespace) && p.namespace == 'cloudflare-gateway'
+        )
+    - name: not-flux-root
+      expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
+  validations:
+    - expression: |
+        object.spec.hostnames.all(h, h.endsWith('-yh-k8s.tsuru.run'))
+      message: "HTTPRoutes attached to the cloudflare Gateway must use hostnames ending with '-yh-k8s.tsuru.run'"
+      reason: Invalid
