@@ -8,5 +8,5 @@ workers_dev = true
 crons = ["* * * * *"]
 
 # Set secrets via tasks:
-#   task worker:secret          (DISCORD_WEBHOOK_URL)
+#   task worker:secret:discord   (DISCORD_WEBHOOK_URL from 1Password monitoring-discord-worker)
 #   task worker:secret:cf-access (CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET)
