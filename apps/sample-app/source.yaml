@@ -21,7 +21,6 @@ spec:
   prune: true
   serviceAccountName: flux-sample-app
   dependsOn:
-    - name: apps
     - name: cilium-config
     - name: longhorn
     - name: external-secrets-config
