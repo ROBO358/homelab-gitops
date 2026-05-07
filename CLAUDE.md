@@ -527,7 +527,7 @@ Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare 
 - `securityContext.fsGroup: 101`（Longhorn PVC は root 所有なので pod spec に fsGroup が必要）
 - `/usr/share/nginx/html` を `emptyDir` でマウント（image 内は root 所有、entrypoint が書けない）
 - Longhorn など RWO PVC を使う場合は `rollingUpdate.maxSurge: 0` を設定すること（`maxSurge > 0` だと新 pod が古い pod より先に起動しようとして PVC attachment で deadlock）
-- `strategy.type: Recreate` は SSA で適用不可（server-owned の `rollingUpdate` フィールドと競合）。代わりに `maxSurge: 0` を使う
+- `strategy.type: Recreate` は既存 Deployment への後付け変更が困難。`strategy` 未指定で作られた Deployment にはサーバーが `rollingUpdate` デフォルト値を所有しており、後から `type: Recreate` だけを SSA でパッチすると `rollingUpdate` が残ったまま Kubernetes のバリデーション（`type=Recreate` と `rollingUpdate` の共存禁止）に弾かれる。`maxSurge: 0` は `type: RollingUpdate` のまま同等の挙動を実現するため、この問題を回避できる
 
 ## インフラ追加の手順
 
