@@ -26,7 +26,6 @@ spec:
     - name: external-secrets-config
     - name: cert-manager-config
     - name: cloudflare-gateway-config
-    - name: monitoring
   sourceRef:
     kind: GitRepository
     name: sample-app-k8s
