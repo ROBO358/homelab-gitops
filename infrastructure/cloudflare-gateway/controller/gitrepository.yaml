@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: cloudflare-kubernetes-gateway
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://github.com/pl4nty/cloudflare-kubernetes-gateway
+  ref:
+    tag: v0.8.2

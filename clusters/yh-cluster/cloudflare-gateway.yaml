@@ -37,3 +37,25 @@ spec:
     name: flux-system
   wait: true
   timeout: 5m
+---
+# Deploys pl4nty/cloudflare-kubernetes-gateway controller manager from its own GitRepository
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cloudflare-gateway-app
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 2m
+  path: ./config/default
+  prune: true
+  serviceAccountName: flux-cloudflare-gateway
+  targetNamespace: cloudflare-gateway
+  dependsOn:
+    - name: cloudflare-gateway
+    - name: gateway-api-crds
+  sourceRef:
+    kind: GitRepository
+    name: cloudflare-kubernetes-gateway
+  wait: true
+  timeout: 5m
