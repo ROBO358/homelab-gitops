@@ -45,7 +45,8 @@
 | Cilium Gateway API | ✅ | HTTP/HTTPS ルーティング（Envoy ベース）|
 | cert-manager 1.16.2 | ✅ | TLS 証明書自動発行（Let's Encrypt DNS-01 / Cloudflare）|
 | Dex v2 | ✅ | GitHub OIDC bridge（`dex.yh.k8s.tsuru.run`）|
-| cloudflared 0.1.2 | ✅ | Cloudflare Tunnel によるインターネット公開 |
+| cloudflare-kubernetes-gateway v0.8.2 | ✅ | Cloudflare Tunnel Gateway API controller (pl4nty) — HTTPRoute で Tunnel ingress + DNS CNAME 自動管理 |
+| Cloudflare Access | ✅ | `*-yh-k8s.tsuru.run` の認証ゲートウェイ（GitHub OAuth、wildcard policy）|
 | Longhorn 1.11.1 | ✅ | 永続ストレージ（worker NVMe /var/mnt/longhorn、3x レプリケーション、default StorageClass）|
 | External Secrets Operator | ✅ | 1Password SDK で yh-cluster vault のシークレットを同期 |
 
@@ -58,7 +59,7 @@
 | kube-prometheus-stack | ✅ | 全メトリクス収集・Grafana・Alertmanager |
 | Grafana Cloud | ✅ | SLI メトリクス長期保存・外部ダッシュボード |
 | Healthchecks.io | ✅ | クラスタ全断の死活検知（Dead man's switch）|
-| Cloudflare Workers | ✅ | 主要エンドポイントの外形監視（grafana-yh-k8s / dex-yh-k8s、5 分ごと）|
+| Cloudflare Workers | ✅ | 主要エンドポイントの外形監視（grafana-yh-k8s / dex-yh-k8s、毎分・初回失敗即通知）|
 
 ---
 
@@ -131,7 +132,9 @@ read-only 系 verb: allowed ✅  /  write 系・Secret: Forbidden ❌
 - LAN 公開サービスも **Let's Encrypt DNS-01** で証明書を発行する
   - DNS-01 は A レコードを検証しないため LAN IP (RFC1918) でも発行可能
   - public CA 証明書なので kube-apiserver・ブラウザが無設定で信頼（CA 配布不要）
-- インターネット公開は **Cloudflare Tunnel (cloudflared)** 経由。Cloudflare が edge で TLS 終端するため cluster 内は HTTP で完結 → cert-manager 不要
+- インターネット公開は **Cloudflare Tunnel (pl4nty Gateway API controller)** 経由。各 app は `HTTPRoute` を宣言するだけで Tunnel ingress + DNS CNAME が自動作成される
+- 公開ホスト名はすべて `*-yh-k8s.tsuru.run` 形式（VAP で強制）。**Cloudflare Access** が wildcard policy で既定保護（GitHub OAuth、自分のみ許可）
+- Cloudflare が edge で TLS 終端するため cluster 内は HTTP で完結 → cert-manager 不要
 - 自己署名 CA は現時点で用途なし（YAGNI）
 
 ### ClusterIssuer 構成
@@ -147,10 +150,11 @@ DNS-01 challenge は Cloudflare API Token で `tsuru.run` ゾーンへ TXT レ�
 
 | 種別 | Cloudflare 設定 |
 |---|---|
-| サービス A レコード（`<svc>.yh.k8s.tsuru.run`） | → `192.168.1.100`、**proxy OFF（灰色雲）** |
+| サービス A レコード（`<svc>.yh.k8s.tsuru.run`） | → LB IP（例: `192.168.1.100`）、**proxy OFF（灰色雲）** |
+| Tunnel CNAME（`<svc>-yh-k8s.tsuru.run`） | → `<tunnel-id>.cfargotunnel.com`、**proxy ON（オレンジ雲）**、pl4nty が HTTPRoute 検知時に自動 upsert |
 | ACME TXT レコード（`_acme-challenge.*`） | cert-manager が自動で書き換え（短命） |
 
-proxy をオレンジ雲にすると Cloudflare edge に吸われて LAN に届かなくなるため必ず OFF にする。
+LAN 向け A レコードは proxy をオレンジ雲にすると Cloudflare edge に吸われて LAN に届かなくなるため必ず OFF にする。
 
 ---
 
@@ -204,32 +208,33 @@ HTTPRoute マッチング
 Service → Pod
 ```
 
-### インターネット公開（Cloudflare Tunnel）✅
+### インターネット公開（Cloudflare Tunnel + Access）✅
 
 ```
 インターネットユーザー
   │ HTTPS（Cloudflare が TLS 終端）
   ▼
+Cloudflare Access（GitHub OAuth 認証）
+  │ 認証通過（Service Token も許可: Workers probe 用）
+  ▼
 Cloudflare Edge
   │ Cloudflare Tunnel（outbound 接続、ポート開放不要）
   ▼
-cloudflared Pod（クラスタ内 Deployment）
+cloudflared Pod（pl4nty controller が Deployment として管理）
   │ HTTP（クラスタ内部、tunnel 自体が暗号化済み）
-  ▼
-Gateway ClusterIP（L2 を経由しない）
-  │ Cilium eBPF + Envoy
-  ▼
-HTTPRoute マッチング
-  │
   ▼
 Service → Pod
 ```
 
 **設計上のポイント:**
-- LAN・外部とも **同じ `Gateway` + `HTTPRoute`** を使う
-- cloudflared は Gateway の **ClusterIP** を向く（LoadBalancer IP は不使用）
-  - L2 Announcements の障害が外部公開に波及しない
-  - クラスタ内で通信が完結し不要なネットワークラウンドトリップがない
+- 各 app は **`HTTPRoute` を宣言するだけ**で公開できる（Tunnel ingress + DNS CNAME は pl4nty が自動作成）
+- LAN 向け（`*.yh.k8s.tsuru.run`）と Tunnel 向け（`*-yh-k8s.tsuru.run`）でドメインを分離
+  - LAN: Gateway LB IP 経由（Cilium Gateway + cert-manager TLS）
+  - Tunnel: `*-yh-k8s.tsuru.run` → pl4nty Gateway（`cloudflare-gateway/yh-cluster`）に parentRef
+- Cloudflare Access が `*-yh-k8s.tsuru.run` 全体を wildcard app で既定保護（GitHub OAuth）
+  - 追加設定なしで新 app を公開しても自分のみアクセス可
+  - public 化が必要な場合は `cloudflare-zero-trust/terraform/apps/<svc>.tf` で per-app bypass policy を追加
+- **Gateway 削除で Tunnel も消える**（pl4nty finalizer）→ `protect-cloudflare-gateway` VAP で flux-system-root 以外の DELETE を拒否
 - TLS は Cloudflare が終端。LAN アクセスの TLS は cert-manager（✅）で別途管理
 
 ### Pod 間通信 ✅
@@ -282,20 +287,27 @@ GitRepository (flux-system/flux-system)
         ├── rbac-humans.yaml           # Kustomization: rbac-humans
         │     └── rbac-humans      →  infrastructure/rbac-humans/
         │           ClusterRoleBinding: ROBO358(OIDC) → view
-        ├── cloudflared.yaml           # Kustomization: cloudflared（dependsOn: flux-rbac, external-secrets-config）
-        │     └── cloudflared      →  infrastructure/cloudflared/controller/
-        │           Namespace + HelmRepository + HelmRelease（cloudflared 0.1.2）
-        │           ExternalSecret（tunnel token）→ cloudflared-tunnel-credentials Secret
+        ├── cloudflare-gateway.yaml    # Kustomization: cloudflare-gateway + cloudflare-gateway-config
+        │     ├── cloudflare-gateway  →  infrastructure/cloudflare-gateway/controller/
+        │     │     Namespace（cloudflare-gateway）+ GitRepository（pl4nty v0.8.2）
+        │     │     ※ Kustomization path: pl4nty repo の ./config/default（controller 一式）
+        │     └── cloudflare-gateway-config  →  infrastructure/cloudflare-gateway/config/
+        │           ExternalSecret（cloudflare: ACCOUNT_ID + TOKEN）
+        │           GatewayClass（cloudflare）+ Gateway（yh-cluster）+ ReferenceGrant
         ├── monitoring.yaml            # Kustomization: monitoring + monitoring-config
         │     ├── monitoring       →  infrastructure/monitoring/controller/
         │     │     Namespace + SA + HelmRepository + HelmRelease（kube-prometheus-stack 84.4.0）
-        │     │     ExternalSecret x4（grafana-admin / grafana-cloud / healthchecks / discord）
+        │     │     ExternalSecret x4（grafana-admin / grafana-cloud / healthchecks / discord-int-grafana）
         │     └── monitoring-config  →  infrastructure/monitoring/config/
         │           PrometheusRule x2（sli recording rules + alerts）
-        │           CiliumNetworkPolicy（/metrics は Prometheus SA からのみ）
+        │           CiliumNetworkPolicy（/metrics は Prometheus SA からのみ、cloudflare-gateway ns → port 3000 許可）
         │           Certificate + Gateway + HTTPRoute（grafana.yh.k8s.tsuru.run）
-        └── policies.yaml              # Kustomization: policies（ValidatingAdmissionPolicy Phase D）
+        │           HTTPRoute（grafana-yh-k8s.tsuru.run → cloudflare-gateway/yh-cluster）
+        └── policies.yaml              # Kustomization: policies（ValidatingAdmissionPolicy）
               └── policies         →  infrastructure/policies/
+                    restrict-tunnel-hostname（HTTPRoute hostname suffix *-yh-k8s.tsuru.run 強制）
+                    protect-cloudflare-gateway（cloudflare-gateway ns の Gateway DELETE 保護）
+                    restrict-rbac-rules（ClusterRole wildcard verb 禁止）
 ```
 
 アプリごとの `HTTPRoute` / `Gateway` リソースは各アプリの namespace に配置する。
@@ -310,11 +322,14 @@ GitRepository (flux-system/flux-system)
   │     └── "Service Account Auth Token: yh-cluster"（ESO 認証用 SA Token）
   │           ※ task eso:bootstrap-secret で cluster に手動投入（Flux 管理外）
   └── Vault: yh-cluster（クラスタ固有シークレット）
-        ├── cloudflared-tunnel-credentials（cloudflared Tunnel 認証トークン）
+        ├── cloudflare-gateway-api-token（pl4nty controller 用: account-id + api-token）
+        ├── cloudflare-access-github-oauth（Cloudflare Access GitHub IdP: client-id + client-secret）
         ├── monitoring-grafana-admin（Grafana 管理者パスワード）
         ├── monitoring-grafana-cloud（Grafana Cloud remoteWrite: instance ID + API token）
         ├── monitoring-healthchecks（Healthchecks.io: webhook URL + project UUID + API key）
-        ├── monitoring-discord（Discord Incoming Webhook URL）
+        ├── monitoring-discord-int-grafana（In-Cluster Alertmanager → Discord: webhook-url に /slack suffix 必須）
+        ├── monitoring-discord-grafana-cloud（Grafana Cloud → Discord: ネイティブ Discord webhook URL）
+        ├── monitoring-discord-worker（Cloudflare Workers probe → Discord: ネイティブ Discord webhook URL）
         ├── grafana-cloud-terraform（Terraform 用 Grafana SA token + connections token + stack ID）
         └── その他アプリシークレット
 
@@ -365,7 +380,7 @@ Flux 自身の GitHub 認証情報（deploy key）は `flux bootstrap` が生成
 │  │  └── 開発者・運用者向け日常分析                │   │
 │  │                                               │   │
 │  │  Alertmanager                                 │   │
-│  │  ├── Warning / Critical → Discord             │   │
+│  │  ├── Warning / Critical → Discord(int-grafana)│   │
 │  │  └── Watchdog heartbeat ──────────────────────┼──→ Healthchecks.io
 │  └──────────────────────────────────────────────┘   │
 │                                                      │
@@ -378,11 +393,13 @@ Flux 自身の GitHub 認証情報（deploy key）は `flux bootstrap` が生成
         Grafana Cloud（無料枠）
         ├── SLI メトリクス長期保存（14 日）
         ├── クラスタ健全性ダッシュボード
+        ├── アラート（CertificateExpiringSoon / RemoteWriteAbsent）→ Discord(ext-grafana)
         └── クラスタ停止時も参照可能
 
-Cloudflare Workers Cron Triggers
-└── 主要エンドポイントを外部から定期 probe
-    └── cloudflared Tunnel の死活も兼ねる
+Cloudflare Workers Cron Triggers（毎分）
+└── 主要エンドポイントを外部から定期 probe（grafana-yh-k8s / dex-yh-k8s）
+    ├── CF Access Service Token で認証（CF-Access-Client-Id/Secret ヘッダ）
+    └── 初回失敗で即 Discord 通知
 ```
 
 ### メトリクスのフロー
@@ -439,10 +456,11 @@ Cloudflare Workers
 
 ```
 1Password（yh-cluster vault）
-  ├── monitoring-grafana-cloud    → ESO → Secret（username: Prometheus instance ID, password: Cloud Access Policy token）
-  ├── monitoring-grafana-admin    → ESO → Secret（username + password: Grafana 管理者認証情報）
-  ├── monitoring-healthchecks     → ESO → Secret（webhook-url: Healthchecks.io ping URL）
-  └── monitoring-discord          → ESO → Secret（webhook-url: Discord Slack-compat URL /slack suffix 含む）
+  ├── monitoring-grafana-cloud       → ESO → Secret（username: Prometheus instance ID, password: Cloud Access Policy token）
+  ├── monitoring-grafana-admin       → ESO → Secret（username + password: Grafana 管理者認証情報）
+  ├── monitoring-healthchecks        → ESO → Secret（webhook-url: Healthchecks.io ping URL）
+  ├── monitoring-discord-int-grafana → ESO → Secret（webhook-url: Discord URL + /slack suffix 必須、Alertmanager slack_configs 用）
+  └── monitoring-discord-grafana-cloud → Terraform variable（Discord native URL、Grafana Cloud contact point 用）
 ```
 
 ### GitOps 配置
@@ -458,15 +476,16 @@ infrastructure/
       externalsecret-grafana-admin.yaml
       externalsecret-grafana-cloud.yaml
       externalsecret-healthchecks.yaml
-      externalsecret-discord.yaml
+      externalsecret-discord.yaml   # monitoring-discord-int-grafana（/slack suffix 必須）
       kustomization.yaml
     config/
       prometheusrule-sli.yaml       # sli:* Recording Rules（5種）
       prometheusrule-alerts.yaml    # クラスタアラート（Watchdog / Node / Pod / 証明書 / リソース）
-      networkpolicy-metrics.yaml    # CiliumNetworkPolicy: intra-ns 自由 / 他 ns は Prometheus のみ scrape 許可
-      certificate.yaml              # grafana.yh.k8s.tsuru.run TLS
-      gateway.yaml                  # Gateway（cilium, 192.168.1.100:443）
-      httproute.yaml                # HTTPRoute → monitoring-grafana:80
+      networkpolicy-metrics.yaml    # CiliumNetworkPolicy: intra-ns 自由 / Prometheus scrape / cloudflare-gateway → port 3000
+      certificate.yaml              # grafana.yh.k8s.tsuru.run TLS（LAN 向け）
+      gateway.yaml                  # Gateway（cilium, 192.168.1.101:443）
+      httproute.yaml                # HTTPRoute → monitoring-grafana:80（LAN: grafana.yh.k8s.tsuru.run）
+      httproute-tunnel.yaml         # HTTPRoute → monitoring-grafana:80（Tunnel: grafana-yh-k8s.tsuru.run）
       kustomization.yaml
 
 clusters/yh-cluster/
@@ -539,7 +558,8 @@ kustomize-controller pod (SA: kustomize-controller)
 | dex | flux-dex | flux-dex-applier → cluster-admin |
 | dex-config | flux-dex-config | flux-dex-config-applier → cluster-admin |
 | rbac-humans | flux-rbac-humans | flux-rbac-humans-applier → cluster-admin |
-| cloudflared | flux-cloudflared | flux-cloudflared-applier → cluster-admin |
+| cloudflare-gateway | flux-cloudflare-gateway | flux-cloudflare-gateway-applier → cluster-admin |
+| cloudflare-gateway-config | flux-cloudflare-gateway-config | flux-cloudflare-gateway-config-applier → cluster-admin |
 | monitoring | flux-monitoring | flux-monitoring-applier → cluster-admin |
 | monitoring-config | flux-monitoring-config | flux-monitoring-config-applier → cluster-admin |
 
@@ -560,7 +580,6 @@ helm-controller は各 HelmRelease の `spec.serviceAccountName` を impersonate
 | dex | dex | helm-dex | helm-dex-applier → cluster-admin |
 | external-secrets | external-secrets | helm-external-secrets | helm-external-secrets-applier → cluster-admin |
 | longhorn | longhorn-system | helm-longhorn | helm-longhorn-applier → cluster-admin |
-| cloudflared | cloudflared | helm-cloudflared | helm-cloudflared-applier → cluster-admin |
 | kube-prometheus-stack | monitoring | helm-monitoring | helm-monitoring-applier → cluster-admin |
 
 各 SA は `infrastructure/<chart>/controller/sa.yaml` で定義し、component の controller Kustomization が管理する（flux-rbac 管理外）。理由: component 自身が namespace を作成するため、flux-rbac 実行時点では namespace が存在せず SA 作成が失敗する。
@@ -596,3 +615,65 @@ helm-controller pod (SA: helm-controller)
 - **audit log**: kustomize-controller は `system:serviceaccount:flux-system:flux-<name>`、helm-controller は `system:serviceaccount:<ns>:helm-<chart>` で操作元を識別可能
 - **blast radius 縮小**: controller pod の token が漏洩しても `impersonate` 権のみ。cluster-admin 直接操作は不可
 - **将来の tenant 設計基盤**: SA ごとに Role を絞ることで namespace-scoped 権限への移行が容易
+
+---
+
+## Cloudflare Tunnel + Access 設計 ✅
+
+### ドメイン体系
+
+| ドメイン形式 | 例 | 用途 | アクセス経路 |
+|---|---|---|---|
+| `<svc>.yh.k8s.tsuru.run` | `grafana.yh.k8s.tsuru.run` | LAN 専用 | Cilium Gateway LB IP（proxy OFF）|
+| `<svc>-yh-k8s.tsuru.run` | `grafana-yh-k8s.tsuru.run` | インターネット公開 | Cloudflare Tunnel（proxy ON）|
+
+### Tunnel 管理フロー
+
+```
+app 開発者
+  │ HTTPRoute を infrastructure/<svc>/config/httproute-tunnel.yaml に追加
+  │ parentRefs: [{name: yh-cluster, namespace: cloudflare-gateway}]
+  │ hostnames: [<svc>-yh-k8s.tsuru.run]
+  ▼
+Flux が apply → pl4nty controller が HTTPRoute を検知
+  ├── Cloudflare API: Tunnel ingress config 更新
+  └── Cloudflare API: DNS CNAME upsert（<svc>-yh-k8s.tsuru.run → <tunnel-id>.cfargotunnel.com）
+
+Cloudflare Access（wildcard *-yh-k8s.tsuru.run）
+  └── 追加設定なしで自動保護（GitHub OAuth、自分のみ許可）
+```
+
+### Access ライフサイクル
+
+Access policy は Tunnel / Gateway とは**独立した** Cloudflare アカウントリソース（Terraform 管理）。K8s manifest を削除しても Access app は残存する（「最後の砦」として機能）。
+
+| 操作 | Tunnel / DNS CNAME | Access policy |
+|---|---|---|
+| HTTPRoute 追加 | 自動作成 | wildcard で自動保護（追加設定不要）|
+| HTTPRoute 削除 | Tunnel ingress 削除・DNS orphan 残存 | 残存 |
+| Gateway 削除（flux-system-root のみ可）| Tunnel 削除 | 残存 |
+| `task cf-access:apply` | 影響なし | 作成 / 更新 |
+
+### per-app Access 制御
+
+| ケース | 必要な作業 |
+|---|---|
+| 新 app を「自分のみ」で公開 | HTTPRoute 追加のみ（wildcard が自動保護）|
+| 新 app を public 化 | `cloudflare-zero-trust/terraform/apps/<svc>.tf` に bypass policy 追加 → `task cf-access:apply` |
+| app を撤去 | HTTPRoute 削除 + `apps/<svc>.tf` 削除 → `task cf-access:apply` |
+
+### Terraform 管理リソース（cloudflare-zero-trust/terraform/）
+
+| リソース | 内容 |
+|---|---|
+| `identity-provider.tf` | GitHub OAuth IdP（`cloudflare-access-github-oauth` から client ID/Secret）|
+| `application-wildcard.tf` | wildcard app `*-yh-k8s.tsuru.run` + Allow self only policy + Workers probe Service Token |
+| `apps/` | per-app exception（bypass / specific allow。wildcard より具体的なホスト名が優先）|
+
+### VAP（ValidatingAdmissionPolicy）
+
+| ポリシー | 対象 | 内容 |
+|---|---|---|
+| `restrict-tunnel-hostname` | HTTPRoute（親: cloudflare Gateway）| hostname が `*-yh-k8s.tsuru.run` で終わらないと Deny |
+| `protect-cloudflare-gateway` | Gateway DELETE（cloudflare-gateway ns）| flux-system-root 以外からの DELETE を Deny |
+| `restrict-rbac-rules` | ClusterRole | `verbs: ["*"]` を custom API group で使用すると Deny |
