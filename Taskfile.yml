@@ -983,7 +983,7 @@ tasks:
         export TF_VAR_api_token=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field api-token --reveal)
         export TF_VAR_account_id=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field account-id --reveal)
         export TF_VAR_team_name=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field team-name --reveal)
-        export TF_VAR_allowed_github_login=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-github-login --reveal)
+        export TF_VAR_allowed_email=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-email --reveal)
         export TF_VAR_github_oauth_client_id=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-id --reveal)
         export TF_VAR_github_oauth_client_secret=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-secret --reveal)
         terraform plan
@@ -997,7 +997,7 @@ tasks:
         export TF_VAR_api_token=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field api-token --reveal)
         export TF_VAR_account_id=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field account-id --reveal)
         export TF_VAR_team_name=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field team-name --reveal)
-        export TF_VAR_allowed_github_login=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-github-login --reveal)
+        export TF_VAR_allowed_email=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-email --reveal)
         export TF_VAR_github_oauth_client_id=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-id --reveal)
         export TF_VAR_github_oauth_client_secret=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-secret --reveal)
         terraform apply -auto-approve
@@ -1011,7 +1011,7 @@ tasks:
         export TF_VAR_api_token=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field api-token --reveal)
         export TF_VAR_account_id=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field account-id --reveal)
         export TF_VAR_team_name=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field team-name --reveal)
-        export TF_VAR_allowed_github_login=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-github-login --reveal)
+        export TF_VAR_allowed_email=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-email --reveal)
         export TF_VAR_github_oauth_client_id=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-id --reveal)
         export TF_VAR_github_oauth_client_secret=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-secret --reveal)
         terraform destroy
@@ -1034,19 +1034,19 @@ tasks:
 
   worker:secret:cf-access:
     desc: "Set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET on yh-probe Worker (run after task cf-access:apply)"
-    dir: workers/probe
     cmds:
       - |
+        root=$(git rev-parse --show-toplevel)
         echo "Reading service token from Terraform output..."
-        cd "$(git rev-parse --show-toplevel)/cloudflare-zero-trust/terraform"
-        client_id=$(terraform output -raw workers_probe_client_id 2>/dev/null) || {
+        client_id=$(cd "$root/cloudflare-zero-trust/terraform" && terraform output -raw workers_probe_client_id 2>/dev/null) || {
           echo "ERROR: terraform output failed. Run 'task cf-access:apply' first." >&2
           exit 1
         }
-        client_secret=$(terraform output -raw workers_probe_client_secret 2>/dev/null) || {
+        client_secret=$(cd "$root/cloudflare-zero-trust/terraform" && terraform output -raw workers_probe_client_secret 2>/dev/null) || {
           echo "ERROR: terraform output for client_secret failed." >&2
           exit 1
         }
+        cd "$root/workers/probe"
         echo "$client_id" | npx wrangler secret put CF_ACCESS_CLIENT_ID
         echo "$client_secret" | npx wrangler secret put CF_ACCESS_CLIENT_SECRET
         echo "Service token secrets set on Worker."

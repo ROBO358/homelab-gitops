@@ -46,10 +46,12 @@ variable "github_oauth_client_secret" {
   sensitive = true
 }
 
-variable "allowed_github_login" {
+variable "allowed_email" {
   description = <<-EOT
-    GitHub username (login) allowed through Access (e.g. "ROBO358").
-    Store in 1Password: cloudflare-access-terraform-token / allowed-github-login (yh-cluster vault)
+    Primary email address allowed through Access.
+    Use the primary email of your GitHub account (GitHub Settings > Emails).
+    Cloudflare Access with GitHub IdP authenticates by email, not by username.
+    Store in 1Password: cloudflare-access-terraform-token / allowed-email (yh-cluster vault)
   EOT
   type = string
 }
