@@ -33,10 +33,21 @@ export default {
 async function runProbes(env) {
   const failures = [];
 
+  // CF-Access-Client-Id/Secret allow this Worker to pass Cloudflare Access without
+  // interactive browser auth. Set via: task worker:secret:cf-access
+  const accessHeaders = {};
+  if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+    accessHeaders["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+    accessHeaders["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
+  }
+
   for (const ep of ENDPOINTS) {
     try {
       const t0 = Date.now();
-      const res = await fetch(ep.url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+      const res = await fetch(ep.url, {
+        headers: accessHeaders,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
       const elapsed = Date.now() - t0;
 
       if (res.status !== ep.expectStatus) {

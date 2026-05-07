@@ -25,9 +25,9 @@ vars:
   MONITORING_NS: monitoring
   KPS_VERSION: "84.4.0"
   GRAFANA_HOST: "grafana.yh.k8s.tsuru.run"
-  # Keep in sync with infrastructure/cloudflared/controller/helmrelease.yaml
-  CLOUDFLARED_NS: cloudflared
-  CLOUDFLARED_CHART_VERSION: "0.1.2"
+  # Keep in sync with infrastructure/cloudflare-gateway/controller/gitrepository.yaml tag
+  CLOUDFLARE_GATEWAY_NS: cloudflare-gateway
+  CLOUDFLARE_GATEWAY_VERSION: "v0.8.2"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
@@ -966,6 +966,57 @@ tasks:
         terraform destroy
 
   # ────────────────────────────────
+  # cf-access: Cloudflare Access (Terraform)
+  # ────────────────────────────────
+
+  cf-access:init:
+    desc: "terraform init for cloudflare-zero-trust (run once)"
+    dir: cloudflare-zero-trust/terraform
+    cmds:
+      - terraform init
+
+  cf-access:plan:
+    desc: "terraform plan for Cloudflare Access (GitHub OAuth IdP + wildcard Access app)"
+    dir: cloudflare-zero-trust/terraform
+    cmds:
+      - |
+        export TF_VAR_api_token=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field api-token --reveal)
+        export TF_VAR_account_id=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field account-id --reveal)
+        export TF_VAR_team_name=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field team-name --reveal)
+        export TF_VAR_allowed_github_login=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-github-login --reveal)
+        export TF_VAR_github_oauth_client_id=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-id --reveal)
+        export TF_VAR_github_oauth_client_secret=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-secret --reveal)
+        terraform plan
+
+  cf-access:apply:
+    desc: "terraform apply for Cloudflare Access (creates IdP + Access app + service token)"
+    dir: cloudflare-zero-trust/terraform
+    prompt: "This will create/update Cloudflare Zero Trust resources (Access app, IdP, service token). Continue?"
+    cmds:
+      - |
+        export TF_VAR_api_token=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field api-token --reveal)
+        export TF_VAR_account_id=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field account-id --reveal)
+        export TF_VAR_team_name=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field team-name --reveal)
+        export TF_VAR_allowed_github_login=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-github-login --reveal)
+        export TF_VAR_github_oauth_client_id=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-id --reveal)
+        export TF_VAR_github_oauth_client_secret=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-secret --reveal)
+        terraform apply -auto-approve
+
+  cf-access:destroy:
+    desc: "terraform destroy for Cloudflare Access (removes all Zero Trust resources)"
+    dir: cloudflare-zero-trust/terraform
+    prompt: "This will DELETE all Cloudflare Zero Trust resources managed by Terraform (Access app, IdP, policies). Continue?"
+    cmds:
+      - |
+        export TF_VAR_api_token=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field api-token --reveal)
+        export TF_VAR_account_id=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field account-id --reveal)
+        export TF_VAR_team_name=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field team-name --reveal)
+        export TF_VAR_allowed_github_login=$({{.OP_CMD}} item get "cloudflare-access-terraform-token" --vault yh-cluster --field allowed-github-login --reveal)
+        export TF_VAR_github_oauth_client_id=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-id --reveal)
+        export TF_VAR_github_oauth_client_secret=$({{.OP_CMD}} item get "cloudflare-access-github-oauth" --vault yh-cluster --field client-secret --reveal)
+        terraform destroy
+
+  # ────────────────────────────────
   # worker: Cloudflare Workers probe
   # ────────────────────────────────
 
@@ -980,6 +1031,25 @@ tasks:
     dir: workers/probe
     cmds:
       - npx wrangler secret put DISCORD_WEBHOOK_URL
+
+  worker:secret:cf-access:
+    desc: "Set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET on yh-probe Worker (run after task cf-access:apply)"
+    dir: workers/probe
+    cmds:
+      - |
+        echo "Reading service token from Terraform output..."
+        cd "$(git rev-parse --show-toplevel)/cloudflare-zero-trust/terraform"
+        client_id=$(terraform output -raw workers_probe_client_id 2>/dev/null) || {
+          echo "ERROR: terraform output failed. Run 'task cf-access:apply' first." >&2
+          exit 1
+        }
+        client_secret=$(terraform output -raw workers_probe_client_secret 2>/dev/null) || {
+          echo "ERROR: terraform output for client_secret failed." >&2
+          exit 1
+        }
+        echo "$client_id" | npx wrangler secret put CF_ACCESS_CLIENT_ID
+        echo "$client_secret" | npx wrangler secret put CF_ACCESS_CLIENT_SECRET
+        echo "Service token secrets set on Worker."
 
   worker:tail:
     desc: "Tail live logs from yh-probe Cloudflare Worker"
