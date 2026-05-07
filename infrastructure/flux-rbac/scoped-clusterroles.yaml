@@ -576,3 +576,54 @@ rules:
   - apiGroups: [external-secrets.io]
     resources: [externalsecrets]
     verbs: [get, list, watch, create, update, patch, delete]
+---
+# flux-cloudflare-gateway-role: applies local infrastructure/cloudflare-gateway/controller/
+# (namespace, GitRepository) and pl4nty's config/default (controller Deployment, SA, ClusterRole/CRB)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-cloudflare-gateway-role
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, serviceaccounts, services, configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles, clusterrolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames: [cloudflare-cloudflare-kubernetes-gateway-manager-role]
+    verbs: [bind]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    verbs: [escalate]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete, escalate, bind]
+  - apiGroups: [source.toolkit.fluxcd.io]
+    resources: [gitrepositories]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingwebhookconfigurations, mutatingwebhookconfigurations]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+# flux-cloudflare-gateway-config-role: applies infrastructure/cloudflare-gateway/config/
+# (ExternalSecret, GatewayClass, Gateway; HTTPRoutes are managed per-app)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-cloudflare-gateway-config-role
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+rules:
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gatewayclasses, gateways]
+    verbs: [get, list, watch, create, update, patch, delete]
