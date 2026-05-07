@@ -126,7 +126,7 @@ sed -i "s/192.168.1.102/192.168.1.103/g" manifests/gateway.yaml
 
 | ファイル | 変更箇所 |
 |---|---|
-| `manifests/kustomization.yaml` | `images[0].name` を `ghcr.io/ROBO358/<app-name>-k8s` に |
+| `manifests/kustomization.yaml` | `images[0].name` を `ghcr.io/robo358/<app-name>-k8s` に（**小文字必須** — kustomize は大文字小文字を区別する）|
 | `manifests/gateway.yaml` | `io.cilium/lb-ipam-ips` を採番した IP に |
 | `manifests/httproute.yaml` | `hostnames` を `<app-name>.yh.k8s.tsuru.run` に |
 | `manifests/httproute-tunnel.yaml` | `hostnames` を `<app-name>-yh-k8s.tsuru.run` に（末尾 `-yh-k8s.tsuru.run` 必須）|
@@ -147,6 +147,8 @@ gh run watch -R ROBO358/<app-name>-k8s
 ```
 
 GHA が成功すると `manifests/kustomization.yaml` に `sha-xxxxxxx` の bot commit が入る。
+
+> **GHA ワークフローを自作する場合の注意**: `docker/metadata-action` の `steps.meta.outputs.version` は `type=raw,value=main` タグが `type=sha` より優先されるため `main` を返す。代わりに `git rev-parse --short=7 HEAD` で SHA を直接計算すること。また `ghcr.io/${{ github.repository }}` は `ROBO358/...` のように大文字展開されるため kustomize の文字列一致に失敗する。image 名は小文字でハードコードすること（`ghcr.io/robo358/<app>-k8s`）。
 
 #### Step 5 — DNS A レコードを追加する（Cloudflare）
 
