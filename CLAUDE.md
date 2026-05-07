@@ -519,6 +519,15 @@ Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare 
 - `apps/<app>/source.yaml` の GitRepository は必ず `namespace: flux-system` に置くこと（`--no-cross-namespace-refs` 制約）
 - app リポ側に SA / ClusterRole / Binding を置いてはいけない（RBAC monotonicity 制約 — CLAUDE.md の「責任分界」節参照）
 - `apps/<app>/namespace.yaml` で Namespace を作るため、app の `manifests/` には namespace.yaml を置かない
+- `apps/<app>/source.yaml` の Kustomization に `dependsOn: apps` を入れてはいけない（`apps` が `wait: false` であっても循環依存になる）
+- `monitoring` Kustomization は 15m の health check を定期実行するため `dependsOn: monitoring` は避ける（ServiceMonitor / PrometheusRule の CRD は常に存在する前提でよい）
+
+**nginx-unprivileged を使う場合の必須設定**（`sample-app-k8s` テンプレートに含み済み、別 app でも踏む可能性あり）:
+- `securityContext.runAsUser: 101`（UID 101 が nginx-unprivileged のユーザー）
+- `securityContext.fsGroup: 101`（Longhorn PVC は root 所有なので pod spec に fsGroup が必要）
+- `/usr/share/nginx/html` を `emptyDir` でマウント（image 内は root 所有、entrypoint が書けない）
+- Longhorn など RWO PVC を使う場合は `rollingUpdate.maxSurge: 0` を設定すること（`maxSurge > 0` だと新 pod が古い pod より先に起動しようとして PVC attachment で deadlock）
+- `strategy.type: Recreate` は SSA で適用不可（server-owned の `rollingUpdate` フィールドと競合）。代わりに `maxSurge: 0` を使う
 
 ## インフラ追加の手順
 
@@ -529,3 +538,8 @@ Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare 
 5. `clusters/yh-cluster/<component>.yaml` に Flux Kustomization を追加
 6. `infrastructure/flux-rbac/` に kustomize-controller 用 SA + ClusterRoleBinding を追加（上記「新しい Flux Kustomization を追加するときの手順」参照）
 7. `git add && git commit && git push` → Flux が自動で適用
+
+# Rule for kubectl
+When executing `kubectl` commands, you MUST place global flags like `-n` or `--namespace` AFTER the subcommand to pass the security approval list.
+- Bad: `kubectl -n kube-system get pods`
+- Good: `kubectl get pods -n kube-system`

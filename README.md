@@ -216,6 +216,10 @@ curl -k https://<app-name>.yh.k8s.tsuru.run
 | cert-manager が証明書を発行しない | DNS A レコードが Cloudflare proxy ON になっている | DNS proxy を **DNS only**（灰色雲）に変更 |
 | `context deadline exceeded` | 初回 PVC Binding が遅い | `kubectl -n <app-name> get pvc` で Bound になるまで待つ（Longhorn が初期化中）|
 | Tunnel の HTTPRoute が `No endpoints` | `ciliumnetworkpolicy.yaml` で cloudflare-gateway ns からのアクセスが deny | CNP で `io.kubernetes.pod.namespace: cloudflare-gateway` からの ingress を許可しているか確認 |
+| Pod が `Init:0/1` のまま進まない（RWO PVC 使用時） | RollingUpdate で新 Pod が先に起動しようとして PVC attachment deadlock | `manifests/deployment.yaml` に `rollingUpdate.maxSurge: 0` を設定しているか確認 |
+| `container has runAsNonRoot and image has non-numeric user` | nginx-unprivileged UID が文字列 "nginx" で Kubernetes が検証できない | `securityContext.runAsUser: 101` を nginx container に追加 |
+| `touch: /var/lib/sample-app/.mtime: Permission denied` | Longhorn PVC が root 所有で UID 101 が書けない | pod spec の `securityContext.fsGroup: 101` を確認 |
+| `can't create /usr/share/nginx/html/index.html: Permission denied` | image 内の `/usr/share/nginx/html` が root 所有 | nginx container に `emptyDir` を `/usr/share/nginx/html` でマウントしているか確認 |
 
 ### public 化する場合（Cloudflare Access bypass）
 
