@@ -531,52 +531,6 @@ rules:
     resources: [ciliumnetworkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: helm-cloudflared-role
-  labels:
-    app.kubernetes.io/part-of: flux-rbac
-rules:
-  # cloudflare-tunnel-remote chart only creates namespace-scoped resources (Deployment, SA, Secret).
-  # Namespace admin RoleBinding covers those. This role exists for the CRB and Helm namespace checks.
-  - apiGroups: [""]
-    resources: [namespaces]
-    verbs: [get, list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: flux-cloudflared-role
-  labels:
-    app.kubernetes.io/part-of: flux-rbac
-rules:
-  - apiGroups: [""]
-    resources: [namespaces]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [""]
-    resources: [serviceaccounts]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [source.toolkit.fluxcd.io]
-    resources: [helmrepositories]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [helm.toolkit.fluxcd.io]
-    resources: [helmreleases]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [rbac.authorization.k8s.io]
-    resources: [clusterrolebindings]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [rbac.authorization.k8s.io]
-    resources: [rolebindings]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [rbac.authorization.k8s.io]
-    resources: [clusterroles]
-    resourceNames: [helm-cloudflared-role, admin]
-    verbs: [bind]
-  - apiGroups: [external-secrets.io]
-    resources: [externalsecrets]
-    verbs: [get, list, watch, create, update, patch, delete]
----
 # flux-cloudflare-gateway-role: applies local infrastructure/cloudflare-gateway/controller/
 # (namespace, GitRepository) and pl4nty's config/default (controller Deployment, SA, ClusterRole/CRB)
 apiVersion: rbac.authorization.k8s.io/v1
@@ -640,5 +594,5 @@ rules:
     resources: [externalsecrets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [gateway.networking.k8s.io]
-    resources: [gatewayclasses, gateways]
+    resources: [gatewayclasses, gateways, referencegrants]
     verbs: [get, list, watch, create, update, patch, delete]

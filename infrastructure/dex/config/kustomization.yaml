@@ -4,3 +4,4 @@ resources:
   - certificate.yaml
   - gateway.yaml
   - httproute.yaml
+  - httproute-tunnel.yaml
