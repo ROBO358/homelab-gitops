@@ -78,9 +78,31 @@ infrastructure/
   dex/controller/sa.yaml             # helm-dex SA + binding（dex）
   external-secrets/controller/sa.yaml # helm-external-secrets SA + binding（external-secrets）
   longhorn/controller/sa.yaml        # helm-longhorn SA + binding（longhorn-system）
+apps/
+  kustomization.yaml     # resources: [<app>/] — 1 行追記で app を追加
+  <app>/                 # ★ app 1 つにつき 1 ディレクトリ（境界の最小単位）
+    kustomization.yaml
+    namespace.yaml       # Namespace + PodSecurity label（platform が所有）
+    rbac.yaml            # flux-<app> SA + flux-<app>-role + ClusterRoleBinding
+    referencegrant.yaml  # cloudflare-gateway ns: allow HTTPRoute from <app> ns
+    source.yaml          # GitRepository(<app>-k8s) + Flux Kustomization(<app>)
 ```
 
 `clusters/yh-cluster/` が Flux の sync パス。ここに Kustomization を追加すると Flux が自動で適用する。
+
+### infrastructure/ vs apps/ の責任分界
+
+| レイヤ | 内容 | 配置先 |
+|---|---|---|
+| **trust** | SA / ClusterRole / Binding | `apps/<app>/rbac.yaml` |
+| **cross-ns 同意** | ReferenceGrant | `apps/<app>/referencegrant.yaml` |
+| **テナンシ単位** | Namespace + PodSecurity | `apps/<app>/namespace.yaml` |
+| **app 同一性** | GitRepository / Flux Kustomization | `apps/<app>/source.yaml` |
+| **コンテンツ** | Deployment / Service / PVC / ESO 等 | `<app>-k8s/manifests/`（app リポ） |
+
+`apps/<app>/` は `flux-system-root`（cluster-admin）で apply される。app の workload manifest は `flux-<app>`（scoped SA）で apply される。これにより、RBAC boundary の定義はプラットフォームが保持しつつ、workload 変更は app リポ内で完結する。
+
+**K8s RBAC の単調性（monotonicity）制約により、app リポ側に SA/ClusterRole/Binding を置くことはできない**。SA 作成権限を委譲した瞬間に tenant が自分を cluster-admin に昇格できるため、RBAC 境界の定義は必ずプラットフォーム側（homelab-gitops）に置く。
 
 ## 重要な規則
 
@@ -475,6 +497,28 @@ Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare 
 - HTTPRoute / Gateway を削除しても Access app は残存 → 「最後の砦」として機能（Tunnel 再作成時も自動保護）
 - Access app の撤去は明示的に `cloudflare-zero-trust/terraform/apps/<svc>.tf` を削除して `task cf-access:apply`
 - Worker probe など Service Token 認証が必要なクライアントは `CF-Access-Client-Id` / `CF-Access-Client-Secret` ヘッダを付与すること（`workers/probe/index.js` 参照）
+
+### 新しいアプリリポジトリを追加する手順（AI 用簡潔版）
+
+詳細な人間向けガイドは `README.md` の「アプリケーションを追加する」節を参照。
+
+1. **app リポを作成**（`ROBO358/<app-name>-k8s`、public/private を選択）
+2. **`sample-app-k8s` をテンプレートとして clone**、`src/` を実装差し替え、`manifests/` の hostname / IP / image name を置換
+3. **DNS A レコードを追加**（Cloudflare、proxy OFF）: `<app>.yh.k8s.tsuru.run` → 未使用 IP（`kubectl get svc -A` で採番確認）
+4. **homelab-gitops: `apps/` に 1 ディレクトリ追加**（`infrastructure/flux-rbac/` や `cloudflare-gateway/config/` は触らない）:
+   ```bash
+   cp -r apps/sample-app apps/<app>
+   sed -i 's/sample-app/<app>/g' apps/<app>/*.yaml
+   # apps/<app>/source.yaml の url を新リポの URL に変更
+   # apps/kustomization.yaml の resources に - <app> を追記
+   ```
+5. **push → `task flux:reconcile` → `task flux:status` で Ready 確認**
+6. **特定 app を public 化したい場合**: `cloudflare-zero-trust/terraform/apps/<app>.tf` を追加して `task cf-access:apply`
+
+**注意点**:
+- `apps/<app>/source.yaml` の GitRepository は必ず `namespace: flux-system` に置くこと（`--no-cross-namespace-refs` 制約）
+- app リポ側に SA / ClusterRole / Binding を置いてはいけない（RBAC monotonicity 制約 — CLAUDE.md の「責任分界」節参照）
+- `apps/<app>/namespace.yaml` で Namespace を作るため、app の `manifests/` には namespace.yaml を置かない
 
 ## インフラ追加の手順
 
