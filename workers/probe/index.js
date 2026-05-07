@@ -1,5 +1,4 @@
-// Cron probe: check grafana-yh-k8s.tsuru.run and dex-yh-k8s.tsuru.run every 5 minutes.
-// On failure, sends a Discord embed notification via DISCORD_WEBHOOK_URL secret.
+// Probe every 1 minute. Alert via Discord on first failure.
 
 const ENDPOINTS = [
   {
