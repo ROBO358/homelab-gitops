@@ -1,0 +1,33 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: mirotalk-k8s
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/ROBO358/mirotalk-k8s
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mirotalk
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  path: ./manifests
+  prune: true
+  serviceAccountName: flux-mirotalk
+  dependsOn:
+    - name: cilium-config
+    - name: longhorn
+    - name: external-secrets-config
+    - name: cert-manager-config
+    - name: cloudflare-gateway-config
+  sourceRef:
+    kind: GitRepository
+    name: mirotalk-k8s
+  wait: true
+  timeout: 10m
