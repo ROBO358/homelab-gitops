@@ -22,8 +22,6 @@ spec:
   serviceAccountName: flux-mirotalk
   dependsOn:
     - name: cilium-config
-    - name: longhorn
-    - name: external-secrets-config
     - name: cert-manager-config
     - name: cloudflare-gateway-config
   sourceRef:
