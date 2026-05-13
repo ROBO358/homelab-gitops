@@ -18,7 +18,7 @@ rules:
     resources: [namespaces]
     verbs: [get, list, watch]
   - apiGroups: [""]
-    resources: [services, persistentvolumeclaims, configmaps, serviceaccounts]
+    resources: [services, persistentvolumeclaims, configmaps]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [apps]
     resources: [deployments, replicasets]

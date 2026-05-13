@@ -13,6 +13,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: apps
 rules:
+  # Namespace is created by platform (apps/<app>/namespace.yaml); SA only needs read
   - apiGroups: [""]
     resources: [namespaces]
     verbs: [get, list, watch]

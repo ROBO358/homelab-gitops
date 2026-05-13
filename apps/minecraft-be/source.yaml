@@ -23,6 +23,7 @@ spec:
   dependsOn:
     - name: cilium-config
     - name: longhorn
+    - name: external-secrets-config
   sourceRef:
     kind: GitRepository
     name: minecraft-be-server-k8s
