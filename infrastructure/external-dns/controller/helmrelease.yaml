@@ -47,7 +47,7 @@ spec:
     txtPrefix: _extdns-
     domainFilters:
       - tsuru.run
-    logLevel: debug
+    logLevel: info
     serviceMonitor:
       enabled: true
       additionalLabels:
