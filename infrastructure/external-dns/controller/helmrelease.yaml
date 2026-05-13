@@ -46,7 +46,7 @@ spec:
     txtOwnerId: yh-cluster
     txtPrefix: _extdns-
     domainFilters:
-      - yh.k8s.tsuru.run
+      - tsuru.run
     logLevel: debug
     serviceMonitor:
       enabled: true
