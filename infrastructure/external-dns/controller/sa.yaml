@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: helm-external-dns
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-external-dns-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-external-dns
+    namespace: external-dns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helm-external-dns-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: helm-external-dns-ns-admin
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: helm-external-dns
+    namespace: external-dns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin

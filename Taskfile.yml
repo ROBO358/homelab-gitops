@@ -28,6 +28,9 @@ vars:
   # Keep in sync with infrastructure/cloudflare-gateway/controller/gitrepository.yaml tag
   CLOUDFLARE_GATEWAY_NS: cloudflare-gateway
   CLOUDFLARE_GATEWAY_VERSION: "v0.8.2"
+  # Keep in sync with infrastructure/external-dns/controller/gitrepository.yaml tag
+  EDNS_NS: external-dns
+  EDNS_VERSION: "external-dns-helm-chart-1.21.1"
   # WSL2: op (Linux) may not be installed; fall back to op.exe (Windows 1Password CLI)
   OP_CMD:
     sh: command -v op >/dev/null 2>&1 && echo "op" || echo "op.exe"
@@ -398,6 +401,27 @@ tasks:
           | openssl x509 -noout -subject -issuer -dates
         echo "(issuer が '(STAGING) Let'\''s Encrypt' 系なら成功)"
       - defer: kubectl -n default delete certificate,secret cm-smoke cm-smoke-tls --ignore-not-found
+
+  # ────────────────────────────────
+  # external-dns: Cloudflare DNS auto-management
+  # ────────────────────────────────
+
+  verify:external-dns:
+    desc: "external-dns pods + ExternalSecret + DNS record ownership check"
+    deps: [ctx:check]
+    cmds:
+      - kubectl get pods -n {{.EDNS_NS}}
+      - kubectl get externalsecret -n {{.EDNS_NS}}
+      - |
+        echo "== ExternalSecret Ready status =="
+        kubectl get externalsecret cloudflare-api-token -n {{.EDNS_NS}} \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{"\n"}'
+      - |
+        echo "== external-dns logs (last 20 lines) =="
+        kubectl logs -n {{.EDNS_NS}} deploy/external-dns --tail=20 2>/dev/null || echo "(pod not ready yet)"
+      - |
+        echo "== Managed HTTPRoutes (via gateway-httproute source) =="
+        kubectl get httproute -A --no-headers 2>/dev/null | grep -v "cloudflare-gateway" || echo "(none found)"
 
   # ────────────────────────────────
   # dex: OIDC bridge lifecycle

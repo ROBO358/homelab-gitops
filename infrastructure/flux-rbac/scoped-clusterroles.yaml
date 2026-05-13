@@ -596,3 +596,68 @@ rules:
   - apiGroups: [gateway.networking.k8s.io]
     resources: [gatewayclasses, gateways, referencegrants]
     verbs: [get, list, watch, create, update, patch, delete]
+---
+# helm-external-dns-role: runtime permissions for the external-dns Deployment
+# source=gateway-httproute only; ingresses and DNSEndpoints intentionally excluded
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helm-external-dns-role
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods, nodes, namespaces]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways, httproutes, grpcroutes, tlsroutes, tcproutes, udproutes]
+    verbs: [get, list, watch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+# flux-external-dns-role: applies infrastructure/external-dns/controller/
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-external-dns-role
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [source.toolkit.fluxcd.io]
+    resources: [gitrepositories]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [helm.toolkit.fluxcd.io]
+    resources: [helmreleases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterrolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [rolebindings]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames: [helm-external-dns-role, admin]
+    verbs: [bind]
+---
+# flux-external-dns-config-role: applies infrastructure/external-dns/config/
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-external-dns-config-role
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+rules:
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    verbs: [get, list, watch, create, update, patch, delete]

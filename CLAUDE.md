@@ -293,6 +293,7 @@ task verify:gateway         # Gateway API CRDs / GatewayClass / cilium-envoy DS
 task verify:eso             # ESO pods + ClusterSecretStore Ready status
 task verify:cert-manager    # cert-manager pods + ClusterIssuers Ready status
 task test:cert-manager      # LE staging DNS-01 smoke test（1-3 分、最大 6 分）
+task verify:external-dns    # external-dns pods + ExternalSecret + managed HTTPRoutes 確認
 task verify:dex             # Dex pods / Certificate / Gateway / HTTPRoute 状態
 task test:dex               # OIDC discovery endpoint + TLS cert issuer 確認
 task oidc:setup             # kubeconfig に oidc user / oidc@yh-cluster context を追加（krew oidc-login 要）
@@ -355,9 +356,10 @@ task verify:eso
 
 cert-manager（`letsencrypt-prod`）でサービスに TLS 証明書を発行するテンプレート。
 
-1. **Cloudflare に A レコードを追加**（手動）
-   - `<svc>.yh.k8s.tsuru.run` → `192.168.1.100`（Gateway LB IP）
-   - **proxy は OFF（灰色雲）**。オレンジ雲にすると Cloudflare edge に吸われ LAN に届かない
+1. **DNS A レコードは external-dns が自動作成**（手動不要）
+   - HTTPRoute に `spec.hostnames` を設定して push するだけで Cloudflare に A レコードが作られる
+   - proxy OFF（灰色雲）は external-dns が自動で設定する（`cloudflare.proxied: false` がデフォルト）
+   - Cloudflare に事前登録が必要なのは **CNAME/A レコードではなく DNS ゾーン**のみ（`yh.k8s.tsuru.run` は既存）
 
 2. **Certificate リソースを作成**（各サービスの namespace に配置）
    ```yaml
@@ -504,7 +506,7 @@ Cloudflare Access policy は **Tunnel / Gateway とは独立した** Cloudflare 
 
 1. **app リポを作成**（`ROBO358/<app-name>-k8s`、public/private を選択）
 2. **`sample-app-k8s` をテンプレートとして clone**、`src/` を実装差し替え、`manifests/` の hostname / IP / image name を置換
-3. **DNS A レコードを追加**（Cloudflare、proxy OFF）: `<app>.yh.k8s.tsuru.run` → 未使用 IP（`kubectl get svc -A` で採番確認）
+3. **LB IP を採番**（`kubectl get svc -A` で未使用 IP を確認）して `io.cilium/lb-ipam-ips` に設定する。DNS A レコードは external-dns が自動作成するため手動登録不要。
 4. **homelab-gitops: `apps/` に 1 ディレクトリ追加**（`infrastructure/flux-rbac/` や `cloudflare-gateway/config/` は触らない）:
    ```bash
    cp -r apps/sample-app apps/<app>

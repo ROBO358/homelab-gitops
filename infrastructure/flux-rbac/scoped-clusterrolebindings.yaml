@@ -222,3 +222,33 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: flux-cloudflare-gateway-config-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-external-dns-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-external-dns
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-external-dns-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-external-dns-config-scoped
+  labels:
+    app.kubernetes.io/part-of: flux-rbac
+subjects:
+  - kind: ServiceAccount
+    name: flux-external-dns-config
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-external-dns-config-role
