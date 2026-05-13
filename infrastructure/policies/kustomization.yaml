@@ -9,3 +9,5 @@ resources:
   - restrict-tunnel-hostname-binding.yaml
   - protect-cloudflare-gateway.yaml
   - protect-cloudflare-gateway-binding.yaml
+  - restrict-lan-hostname.yaml
+  - restrict-lan-hostname-binding.yaml

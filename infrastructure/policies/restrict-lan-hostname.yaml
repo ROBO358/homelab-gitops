@@ -1,0 +1,30 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: restrict-lan-hostname
+  labels:
+    app.kubernetes.io/part-of: policies
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["gateway.networking.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["httproutes"]
+  matchConditions:
+    # Only enforce on HTTPRoutes NOT attached to cloudflare-gateway
+    - name: not-cloudflare-gateway
+      expression: |
+        !object.spec.parentRefs.exists(p,
+          has(p.namespace) && p.namespace == 'cloudflare-gateway'
+        )
+    - name: not-flux-root
+      expression: "request.userInfo.username != 'system:serviceaccount:flux-system:flux-system-root'"
+    - name: has-hostnames
+      expression: "has(object.spec.hostnames) && object.spec.hostnames.size() > 0"
+  validations:
+    - expression: |
+        object.spec.hostnames.all(h, h.endsWith('.yh.k8s.tsuru.run'))
+      message: "LAN-internal HTTPRoutes must use hostnames ending with '.yh.k8s.tsuru.run'"
+      reason: Invalid
