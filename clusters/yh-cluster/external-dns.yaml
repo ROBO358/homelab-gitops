@@ -30,7 +30,6 @@ spec:
   serviceAccountName: flux-external-dns-config
   dependsOn:
     - name: flux-rbac
-    - name: external-dns
     - name: external-secrets-config
     - name: cilium-config
   sourceRef:
