@@ -41,8 +41,6 @@ spec:
             key: api-token
     sources:
       - gateway-httproute
-    extraArgs:
-      - --gateway-name=*
     policy: sync
     registry: txt
     txtOwnerId: yh-cluster
