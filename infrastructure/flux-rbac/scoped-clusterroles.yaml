@@ -599,6 +599,7 @@ rules:
 ---
 # helm-external-dns-role: runtime permissions for the external-dns Deployment
 # source=gateway-httproute only; ingresses and DNSEndpoints intentionally excluded
+# CRD management required: chart installs dnsendpoints.externaldns.k8s.io via crds/ dir
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -617,6 +618,9 @@ rules:
     verbs: [get, list, watch]
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
     verbs: [get, list, watch, create, update, patch, delete]
 ---
 # flux-external-dns-role: applies infrastructure/external-dns/controller/
