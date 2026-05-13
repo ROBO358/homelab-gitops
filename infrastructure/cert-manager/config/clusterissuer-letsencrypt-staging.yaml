@@ -16,4 +16,4 @@ spec:
               key: api-token
         selector:
           dnsZones:
-            - yh.k8s.tsuru.run
+            - tsuru.run
