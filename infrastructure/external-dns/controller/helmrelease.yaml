@@ -42,7 +42,6 @@ spec:
     sources:
       - gateway-httproute
     extraArgs:
-      - --cloudflare-proxied=false
       - --gateway-name=*
     policy: sync
     registry: txt
