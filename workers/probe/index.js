@@ -1,4 +1,4 @@
-// Probe every 1 minute. Alert via Discord on first failure.
+// Probe every 1 minute. Alert via Discord after 2 consecutive failures.
 
 const ENDPOINTS = [
   {
@@ -13,8 +13,9 @@ const ENDPOINTS = [
   },
 ];
 
-const TIMEOUT_MS = 5000;
-const SLOW_MS = 3000;
+const TIMEOUT_MS = 10000;
+const SLOW_MS = 5000;
+const RETRY_DELAY_MS = 3000;
 
 export default {
   async scheduled(_event, env, _ctx) {
@@ -30,8 +31,6 @@ export default {
 };
 
 async function runProbes(env) {
-  const failures = [];
-
   // CF-Access-Client-Id/Secret allow this Worker to pass Cloudflare Access without
   // interactive browser auth. Set via: task worker:secret:cf-access
   const accessHeaders = {};
@@ -40,35 +39,52 @@ async function runProbes(env) {
     accessHeaders["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
   }
 
-  for (const ep of ENDPOINTS) {
-    try {
-      const t0 = Date.now();
-      const res = await fetch(ep.url, {
-        headers: accessHeaders,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      const elapsed = Date.now() - t0;
-
-      if (res.status !== ep.expectStatus) {
-        failures.push(`**${ep.name}**: HTTP ${res.status} (expected ${ep.expectStatus}) — ${ep.url}`);
-        console.error(`FAIL ${ep.name} HTTP ${res.status}`);
-      } else if (elapsed > SLOW_MS) {
-        failures.push(`**${ep.name}**: slow response ${elapsed}ms — ${ep.url}`);
-        console.warn(`SLOW ${ep.name} ${elapsed}ms`);
-      } else {
-        console.log(`OK ${ep.name} ${elapsed}ms`);
-      }
-    } catch (err) {
-      failures.push(`**${ep.name}**: ${err.message} — ${ep.url}`);
-      console.error(`FAIL ${ep.name}: ${err.message}`);
-    }
-  }
+  const results = await Promise.all(ENDPOINTS.map(ep => probeWithRetry(ep, accessHeaders)));
+  const failures = results.filter(Boolean);
 
   if (failures.length > 0) {
     await notifyDiscord(env.DISCORD_WEBHOOK_URL, failures);
   }
 
   return failures;
+}
+
+async function probeWithRetry(ep, headers) {
+  let lastFailure = null;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+    }
+
+    try {
+      const t0 = Date.now();
+      const res = await fetch(ep.url, {
+        headers,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      const elapsed = Date.now() - t0;
+
+      if (res.status !== ep.expectStatus) {
+        lastFailure = `**${ep.name}**: HTTP ${res.status} (expected ${ep.expectStatus}) — ${ep.url}`;
+        console.error(`FAIL attempt=${attempt} ${ep.name} HTTP ${res.status}`);
+        continue;
+      }
+
+      if (elapsed > SLOW_MS) {
+        console.warn(`SLOW ${ep.name} attempt=${attempt} ${elapsed}ms`);
+        return `**${ep.name}**: slow response ${elapsed}ms — ${ep.url}`;
+      }
+
+      console.log(`OK ${ep.name} attempt=${attempt} ${elapsed}ms`);
+      return null;
+    } catch (err) {
+      lastFailure = `**${ep.name}**: ${err.message} — ${ep.url}`;
+      console.error(`FAIL attempt=${attempt} ${ep.name}: ${err.message}`);
+    }
+  }
+
+  return lastFailure;
 }
 
 async function notifyDiscord(webhookUrl, failures) {
