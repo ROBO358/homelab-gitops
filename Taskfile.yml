@@ -119,6 +119,36 @@ tasks:
       - kubectl -n {{.CILIUM_NS}} rollout status deploy/cilium-operator --timeout=2m
 
   # ────────────────────────────────
+  # etcd: Maintenance
+  # ────────────────────────────────
+
+  etcd:defrag:
+    desc: "etcd defrag — reclaim disk space from fragmentation (run every few months)"
+    cmds:
+      - |
+        echo "=== etcd status before defrag ==="
+        talosctl --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig \
+          -n 192.168.1.201,192.168.1.202,192.168.1.203 -e 192.168.1.201 \
+          etcd status 2>&1
+      - |
+        echo "=== defrag c3 (follower) ==="
+        talosctl --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig \
+          -n 192.168.1.203 -e 192.168.1.201 etcd defrag 2>&1
+      - |
+        echo "=== defrag c2 (follower) ==="
+        talosctl --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig \
+          -n 192.168.1.202 -e 192.168.1.201 etcd defrag 2>&1
+      - |
+        echo "=== defrag c1 (leader) ==="
+        talosctl --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig \
+          -n 192.168.1.201 -e 192.168.1.201 etcd defrag 2>&1
+      - |
+        echo "=== etcd status after defrag ==="
+        talosctl --talosconfig ~/k8s/talhelper/clusterconfig/talosconfig \
+          -n 192.168.1.201,192.168.1.202,192.168.1.203 -e 192.168.1.201 \
+          etcd status 2>&1
+
+  # ────────────────────────────────
   # admin: Break-Glass admin access via 1Password
   # ────────────────────────────────
 
