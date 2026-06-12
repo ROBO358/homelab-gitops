@@ -6,3 +6,4 @@ resources:
   - mirotalk
   - speedtest
   - netstress
+  - darts-analyzer
