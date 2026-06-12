@@ -31,6 +31,10 @@ spec:
   driftDetection:
     mode: enabled
   values:
+    defaultRules:
+      disabled:
+        AlertmanagerFailedToSendAlerts: true
+        AlertmanagerClusterFailedToSendAlerts: true
     crds:
       enabled: true
 

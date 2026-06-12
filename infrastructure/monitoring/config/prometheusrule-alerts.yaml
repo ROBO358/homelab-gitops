@@ -103,3 +103,38 @@ spec:
             severity: warning
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has been Pending for 15 minutes"
+
+    - name: alertmanager
+      rules:
+        # ビルトイン AlertmanagerFailedToSendAlerts (> 0.01) の緩和版。
+        # defaultRules.disabled でビルトインを無効化したうえで閾値 > 0.5 で再追加。
+        - alert: AlertmanagerFailedToSendAlerts
+          expr: |-
+            (
+              rate(alertmanager_notifications_failed_total{job="monitoring-kube-prometheus-alertmanager",container="alertmanager",namespace="monitoring"}[15m])
+            /
+              ignoring (reason) group_left rate(alertmanager_notifications_total{job="monitoring-kube-prometheus-alertmanager",container="alertmanager",namespace="monitoring"}[15m])
+            )
+            > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "An Alertmanager instance failed to send notifications."
+            description: "Alertmanager {{ $labels.namespace }}/{{ $labels.pod }} failed to send {{ $value | humanizePercentage }} of notifications to {{ $labels.integration }}."
+
+        # ビルトイン AlertmanagerClusterFailedToSendAlerts (> 0.01) の緩和版。
+        - alert: AlertmanagerClusterFailedToSendAlerts
+          expr: |-
+            min by (namespace,service,integration) (
+              rate(alertmanager_notifications_failed_total{job="monitoring-kube-prometheus-alertmanager",container="alertmanager",namespace="monitoring",integration=~".*"}[15m])
+            /
+              ignoring (reason) group_left rate(alertmanager_notifications_total{job="monitoring-kube-prometheus-alertmanager",container="alertmanager",namespace="monitoring",integration=~".*"}[15m]) > 0
+            )
+            > 0.5
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "All Alertmanager instances failed to send notifications."
+            description: "The minimum notification failure rate to {{ $labels.integration }} from any instance in the {{ $labels.job }} cluster is {{ $value | humanizePercentage }}."
