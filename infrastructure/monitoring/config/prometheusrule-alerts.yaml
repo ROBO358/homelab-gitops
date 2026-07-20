@@ -46,6 +46,43 @@ spec:
           annotations:
             summary: "Node {{ $labels.node }} has memory pressure"
 
+        # node-exporter は hostNetwork のため instance が IP になる。
+        # node_uname_info と join して nodename ラベルを付ける。
+        - alert: NodeThermalThrottling
+          expr: |
+            sum by (instance) (rate(node_cpu_core_throttles_total[10m]))
+              * on(instance) group_left(nodename) node_uname_info > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.nodename }} CPU is thermal throttling"
+            description: "CPU cores on {{ $labels.nodename }} have been clocking down due to temperature for 15 minutes. Check cooling and sustained load."
+
+        # 定常時の p95 は全ノード 60-76℃、coretemp の crit は 105℃
+        - alert: NodeCPUTemperatureHigh
+          expr: |
+            max by (instance) (node_hwmon_temp_celsius{chip=~".*coretemp.*"})
+              * on(instance) group_left(nodename) node_uname_info > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.nodename }} CPU is at {{ $value | printf \"%.0f\" }}℃"
+            description: "CPU package temperature on {{ $labels.nodename }} has exceeded 85℃ for 10 minutes."
+
+        # NVMe の node_hwmon_temp_max_celsius は 82.85℃
+        - alert: NodeNVMeTemperatureHigh
+          expr: |
+            max by (instance) (node_hwmon_temp_celsius{chip=~"nvme.*"})
+              * on(instance) group_left(nodename) node_uname_info > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.nodename }} NVMe is at {{ $value | printf \"%.0f\" }}℃"
+            description: "NVMe composite temperature on {{ $labels.nodename }} has exceeded 80℃ for 10 minutes. Sustained heat shortens SSD life and triggers device-level throttling."
+
     - name: pod
       rules:
         - alert: PodCrashLooping

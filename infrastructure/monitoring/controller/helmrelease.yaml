@@ -91,6 +91,26 @@ spec:
         enabled: true
         storageClassName: longhorn
         size: 5Gi
+      dashboardProviders:
+        dashboardproviders.yaml:
+          apiVersion: 1
+          providers:
+            - name: gnet
+              orgId: 1
+              folder: "Community"
+              type: file
+              disableDeletion: true
+              editable: false
+              options:
+                path: /var/lib/grafana/dashboards/gnet
+      # The download-dashboards init container fetches these from grafana.com on
+      # every pod start — Grafana will not start if egress to grafana.com fails.
+      dashboards:
+        gnet:
+          node-exporter-full:
+            # https://grafana.com/grafana/dashboards/1860
+            gnetId: 1860
+            revision: 45
 
     # ── Alertmanager ────────────────────────────────────────
     alertmanager:
